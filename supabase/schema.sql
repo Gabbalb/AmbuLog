@@ -139,3 +139,54 @@ INSERT INTO public.vehicles (license_plate, type, last_km, active) VALUES
 ('AMB456ZZ', 'Ambulanza B', 89310, TRUE),
 ('AUTO789K', 'Fiat Doblò (Sedia)', 210150, TRUE)
 ON CONFLICT (license_plate) DO NOTHING;
+
+-- =========================================================================
+-- 11. ENABLE ROW LEVEL SECURITY (RLS)
+-- =========================================================================
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.vehicles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.transports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.transport_crew ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.shifts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.availabilities ENABLE ROW LEVEL SECURITY;
+
+-- =========================================================================
+-- 12. CREATE SECURITY POLICIES FOR PUBLIC API KEY ACCESS
+-- =========================================================================
+
+-- Policies for public.users
+CREATE POLICY "Allow public select on users" ON public.users FOR SELECT USING (true);
+CREATE POLICY "Allow public insert on users" ON public.users FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update on users" ON public.users FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete on users" ON public.users FOR DELETE USING (true);
+
+-- Policies for public.vehicles
+CREATE POLICY "Allow public select on vehicles" ON public.vehicles FOR SELECT USING (true);
+CREATE POLICY "Allow public insert on vehicles" ON public.vehicles FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update on vehicles" ON public.vehicles FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete on vehicles" ON public.vehicles FOR DELETE USING (true);
+
+-- Policies for public.transports
+CREATE POLICY "Allow public select on transports" ON public.transports FOR SELECT USING (true);
+CREATE POLICY "Allow public insert on transports" ON public.transports FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update on transports" ON public.transports FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete on transports" ON public.transports FOR DELETE USING (true);
+
+-- Policies for public.transport_crew
+CREATE POLICY "Allow public select on transport_crew" ON public.transport_crew FOR SELECT USING (true);
+CREATE POLICY "Allow public insert on transport_crew" ON public.transport_crew FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update on transport_crew" ON public.transport_crew FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete on transport_crew" ON public.transport_crew FOR DELETE USING (true);
+
+-- Policies for public.shifts
+CREATE POLICY "Allow public select on shifts" ON public.shifts FOR SELECT USING (true);
+CREATE POLICY "Allow public insert on shifts" ON public.shifts FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update on shifts" ON public.shifts FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete on shifts" ON public.shifts FOR DELETE USING (true);
+
+-- Policies for public.availabilities
+CREATE POLICY "Allow public select on availabilities" ON public.availabilities FOR SELECT USING (true);
+CREATE POLICY "Allow public insert on availabilities" ON public.availabilities FOR INSERT WITH CHECK (true);
+CREATE POLICY "Allow public update on availabilities" ON public.availabilities FOR UPDATE USING (true);
+CREATE POLICY "Allow public delete on availabilities" ON public.availabilities FOR DELETE USING (true);
+

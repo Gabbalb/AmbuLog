@@ -23,7 +23,8 @@ export default function UsrHome() {
   const router = useRouter();
   const [transports, setTransports] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterTab, setFilterTab] = useState<'miei' | 'tutti'>('miei');
+  const [statusTab, setStatusTab] = useState<'attivi' | 'completati'>('attivi');
+  const [assignmentTab, setAssignmentTab] = useState<'miei' | 'tutti'>('miei');
   const [activeCrew, setActiveCrew] = useState<any>(null);
 
   // Force activation modal state
@@ -109,8 +110,13 @@ export default function UsrHome() {
 
   // Filter transport logic
   const filteredTransports = transports.filter(t => {
-    if (filterTab === 'tutti') return true;
-    // Show if matches active crew vehicle
+    // 1. Filter by status: attivi (programmati, attivo) vs completati (completato, annullato)
+    const isCompleted = t.status === 'completato' || t.status === 'annullato';
+    if (statusTab === 'attivi' && isCompleted) return false;
+    if (statusTab === 'completati' && !isCompleted) return false;
+
+    // 2. Filter by crew assignment
+    if (assignmentTab === 'tutti') return true;
     return activeCrew && t.vehicle_id === activeCrew.vehicleId;
   });
 
@@ -170,27 +176,51 @@ export default function UsrHome() {
         </Link>
       </div>
 
-      {/* Filter Tabs Toggle */}
-      <div className="grid grid-cols-2 rounded-xl bg-slate-200/50 dark:bg-slate-900/50 p-1 border border-slate-200 dark:border-slate-800">
+      {/* Primary Status Tabs Toggle */}
+      <div className="grid grid-cols-2 rounded-xl bg-slate-200/50 dark:bg-slate-900/50 p-1 border border-slate-200/80 dark:border-slate-800">
         <button
-          onClick={() => setFilterTab('miei')}
-          className={`rounded-lg py-2.5 text-sm font-semibold transition-all ${
-            filterTab === 'miei'
-              ? 'bg-white dark:bg-slate-800 text-teal-600 dark:text-teal-400 shadow-sm'
+          onClick={() => setStatusTab('attivi')}
+          className={`rounded-lg py-2.5 text-xs font-bold uppercase tracking-wider transition-all ${
+            statusTab === 'attivi'
+              ? 'bg-teal-600 text-white shadow-md'
               : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
           }`}
         >
-          I Miei Trasporti
+          Servizi Attivi
         </button>
         <button
-          onClick={() => setFilterTab('tutti')}
-          className={`rounded-lg py-2.5 text-sm font-semibold transition-all ${
-            filterTab === 'tutti'
-              ? 'bg-white dark:bg-slate-800 text-teal-600 dark:text-teal-400 shadow-sm'
+          onClick={() => setStatusTab('completati')}
+          className={`rounded-lg py-2.5 text-xs font-bold uppercase tracking-wider transition-all ${
+            statusTab === 'completati'
+              ? 'bg-teal-600 text-white shadow-md'
               : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
           }`}
         >
-          Tutti i Trasporti
+          Storico Chiusi
+        </button>
+      </div>
+
+      {/* Secondary Assignment Toggle (Pills) */}
+      <div className="flex items-center gap-2 mt-1">
+        <button
+          onClick={() => setAssignmentTab('miei')}
+          className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border ${
+            assignmentTab === 'miei'
+              ? 'bg-slate-800 border-slate-800 text-white dark:bg-slate-100 dark:border-slate-100 dark:text-slate-950 shadow-sm'
+              : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-850 text-slate-500 dark:text-slate-400 hover:bg-slate-200/80'
+          }`}
+        >
+          Il Mio Mezzo
+        </button>
+        <button
+          onClick={() => setAssignmentTab('tutti')}
+          className={`px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all border ${
+            assignmentTab === 'tutti'
+              ? 'bg-slate-800 border-slate-800 text-white dark:bg-slate-100 dark:border-slate-100 dark:text-slate-950 shadow-sm'
+              : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-850 text-slate-500 dark:text-slate-400 hover:bg-slate-200/80'
+          }`}
+        >
+          Tutti i Mezzi
         </button>
       </div>
 
@@ -205,16 +235,18 @@ export default function UsrHome() {
           <AlertCircle className="h-8 w-8 text-slate-400 mb-2" />
           <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">Nessun trasporto trovato</h4>
           <p className="text-xs text-slate-400 mt-1 max-w-[240px]">
-            {filterTab === 'miei' 
-              ? "Non ci sono trasporti programmati assegnati al tuo mezzo per oggi." 
-              : "Non ci sono trasporti programmati a tabellone."}
+            {assignmentTab === 'miei' 
+              ? `Non ci sono trasporti ${statusTab === 'attivi' ? 'attivi o programmati' : 'completati'} assegnati al tuo mezzo.` 
+              : `Non ci sono trasporti ${statusTab === 'attivi' ? 'attivi o programmati' : 'completati'} registrati.`}
           </p>
-          <Link
-            href="/usr/nuovo"
-            className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-teal-600 text-white rounded-lg text-xs font-bold transition active:scale-95"
-          >
-            <Plus className="h-3.5 w-3.5" /> Nuovo A Chiamata
-          </Link>
+          {statusTab === 'attivi' && (
+            <Link
+              href="/usr/nuovo"
+              className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg text-xs font-bold transition active:scale-95 shadow-md shadow-teal-500/10"
+            >
+              <Plus className="h-3.5 w-3.5" /> Nuovo A Chiamata
+            </Link>
+          )}
         </div>
       ) : (
         <div className="flex flex-col gap-4">
@@ -320,15 +352,6 @@ export default function UsrHome() {
           </div>
         </div>
       </Modal>
-
-      {/* Floating Action Button for Mobile Screens */}
-      <Link
-        href="/usr/nuovo"
-        className="fixed right-6 bottom-24 z-30 flex h-14 w-14 items-center justify-center rounded-full bg-teal-600 hover:bg-teal-700 text-white shadow-lg shadow-teal-500/30 transition-transform active:scale-95 md:hidden border-4 border-slate-50 dark:border-slate-950"
-        title="Nuovo Trasporto a Chiamata"
-      >
-        <Plus className="h-6 w-6" />
-      </Link>
     </div>
   );
 }
