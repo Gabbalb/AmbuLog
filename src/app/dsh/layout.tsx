@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { 
   Activity, 
   ClipboardList, 
@@ -17,12 +17,46 @@ import Header from '@/components/Header';
 
 export default function DshLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [authorized, setAuthorized] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const sessionStr = localStorage.getItem('amb_user_session');
+      if (!sessionStr) {
+        router.push('/');
+        return;
+      }
+      try {
+        const session = JSON.parse(sessionStr);
+        if (session.role !== 'admin') {
+          alert('Accesso negato! Area riservata alla Centrale Operativa.');
+          router.push('/');
+          return;
+        }
+        setAuthorized(true);
+      } catch (e) {
+        router.push('/');
+      }
+    }
+  }, [router]);
 
   const menuItems = [
     { href: '/dsh', icon: Activity, label: 'Overview centrale' },
     { href: '/dsh/transports', icon: ClipboardList, label: 'Gestione Trasporti' },
     { href: '/dsh/settings', icon: Settings, label: 'Impostazioni & Turni' },
   ];
+
+  if (!authorized) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-t-teal-500 border-slate-850"></div>
+          <span className="text-xs font-semibold text-slate-400">Verifica sessione in corso...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-slate-950 text-slate-800 dark:text-slate-100 font-sans">

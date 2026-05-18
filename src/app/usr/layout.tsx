@@ -13,6 +13,7 @@ export default function UsrLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [activeCrew, setActiveCrew] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [authorized, setAuthorized] = useState(false);
 
   // Crew Setup Form State
   const [vehicles, setVehicles] = useState<any[]>([]);
@@ -23,6 +24,16 @@ export default function UsrLayout({ children }: { children: React.ReactNode }) {
   const [selectedThird, setSelectedThird] = useState('');
 
   useEffect(() => {
+    // 0. Check if user session exists
+    if (typeof window !== 'undefined') {
+      const sessionStr = localStorage.getItem('amb_user_session');
+      if (!sessionStr) {
+        router.push('/');
+        return;
+      }
+      setAuthorized(true);
+    }
+
     // 1. Check if crew is set in local storage
     if (typeof window !== 'undefined') {
       const stored = localStorage.getItem('amb_active_crew');
@@ -83,6 +94,17 @@ export default function UsrLayout({ children }: { children: React.ReactNode }) {
       setActiveCrew(null);
     }
   };
+
+  if (!authorized) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-950 text-white">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-t-teal-500 border-slate-850"></div>
+          <span className="text-[11px] font-bold text-slate-400 uppercase tracking-widest">Verifica sessione in corso...</span>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (

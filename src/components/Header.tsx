@@ -35,17 +35,27 @@ export default function Header({ title = 'AmbuLog', subtitle, showBackToPortal =
     }
   };
 
+  const handleLogout = () => {
+    if (confirm('Vuoi disconnetterti da AmbuLog?')) {
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('amb_user_session');
+        localStorage.removeItem('amb_active_crew');
+      }
+      router.push('/');
+    }
+  };
+
   return (
     <header className="sticky top-0 z-40 w-full glass-panel border-b px-4 py-3 md:px-6">
       <div className="mx-auto flex max-w-7xl items-center justify-between">
         
         {/* Brand Identity */}
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-600 text-white shadow-md shadow-teal-500/20">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-650 text-white shadow-md shadow-teal-500/20">
             <Activity className="h-5 w-5 animate-pulse" />
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-teal-600 to-indigo-600 bg-clip-text text-transparent dark:from-teal-400 dark:to-cyan-400">
+            <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-teal-650 to-indigo-600 bg-clip-text text-transparent dark:from-teal-400 dark:to-cyan-400">
               {title}
             </h1>
             {subtitle ? (
@@ -77,15 +87,15 @@ export default function Header({ title = 'AmbuLog', subtitle, showBackToPortal =
             </div>
           )}
 
-          {/* View switcher */}
+          {/* Logout button */}
           {showBackToPortal && (
-            <Link
-              href="/"
-              className="flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white/50 dark:bg-slate-900/50 hover:bg-slate-50 dark:hover:bg-slate-850 px-3 text-xs font-semibold shadow-sm transition"
+            <button
+              onClick={handleLogout}
+              className="flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-850 bg-rose-500/10 hover:bg-rose-500/25 px-3 text-xs font-semibold text-rose-600 dark:text-rose-455 transition shadow-sm"
             >
-              <ArrowLeftRight className="h-3.5 w-3.5" />
-              <span className="hidden md:inline">Cambia Ruolo</span>
-            </Link>
+              <LogOut className="h-3.5 w-3.5" />
+              <span className="hidden md:inline">Disconnetti</span>
+            </button>
           )}
         </div>
       </div>

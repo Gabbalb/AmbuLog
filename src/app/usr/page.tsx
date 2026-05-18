@@ -58,9 +58,11 @@ export default function UsrHome() {
   }, []);
 
   const handleCardClick = (t: any) => {
-    // If transport is already completed or cancelled, do nothing or show detail
+    // If transport is already completed or cancelled, allow opening it for corrections
     if (t.status === 'completato' || t.status === 'annullato') {
-      alert(`Servizio già ${t.status}.`);
+      if (confirm(`Questo servizio è già ${t.status}. Desideri aprirlo per correggere o modificare i dati?`)) {
+        router.push(`/usr/nuovo?id=${t.id}`);
+      }
       return;
     }
 
