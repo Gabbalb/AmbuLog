@@ -1,5 +1,17 @@
 @import "tailwindcss";
 
+@theme {
+  --color-teal-650: #0f766e;
+  --color-slate-650: #475569;
+  --color-slate-850: #1e293b;
+  --color-slate-450: #64748b;
+  --color-slate-350: #94a3b8;
+  --color-slate-550: #475569;
+  --color-rose-650: #b91c1c;
+  --color-rose-455: #e11d48;
+  --color-emerald-650: #047857;
+}
+
 :root {
   --background: #f8fafc;
   --foreground: #0f172a;
