@@ -66,8 +66,8 @@ export default function UsrHome() {
       return;
     }
 
-    // Check if assigned to our vehicle
-    const isAssignedToUs = activeCrew && t.vehicle_id === activeCrew.vehicleId;
+    // Check if assigned to our vehicle or if we don't have an active crew/shift lock
+    const isAssignedToUs = activeCrew ? t.vehicle_id === activeCrew.vehicleId : true;
 
     if (isAssignedToUs || t.status === 'attivo') {
       // Direct access to digital form starting with the current data prefilled
@@ -119,7 +119,21 @@ export default function UsrHome() {
 
     // 2. Filter by crew assignment
     if (assignmentTab === 'tutti') return true;
-    return activeCrew && t.vehicle_id === activeCrew.vehicleId;
+    if (activeCrew) {
+      return t.vehicle_id === activeCrew.vehicleId;
+    } else {
+      // Filter by logged-in user name/id in transport crew
+      if (typeof window !== 'undefined') {
+        const sessionStr = localStorage.getItem('amb_user_session');
+        if (sessionStr) {
+          try {
+            const session = JSON.parse(sessionStr);
+            return t.transport_crew?.some((c: any) => c.user_id === session.id || c.custom_name === session.name);
+          } catch (e) {}
+        }
+      }
+      return false;
+    }
   });
 
   const getStatusBadge = (status: string) => {
@@ -212,7 +226,7 @@ export default function UsrHome() {
               : 'bg-slate-100 dark:bg-slate-900 border-slate-200 dark:border-slate-850 text-slate-500 dark:text-slate-400 hover:bg-slate-200/80'
           }`}
         >
-          Il Mio Mezzo
+          {activeCrew ? 'Il Mio Mezzo' : 'I Miei Servizi'}
         </button>
         <button
           onClick={() => setAssignmentTab('tutti')}

@@ -14,6 +14,7 @@ export default function UsrLayout({ children }: { children: React.ReactNode }) {
   const [activeCrew, setActiveCrew] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [authorized, setAuthorized] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Crew Setup Form State
   const [vehicles, setVehicles] = useState<any[]>([]);
@@ -31,6 +32,9 @@ export default function UsrLayout({ children }: { children: React.ReactNode }) {
         router.push('/');
         return;
       }
+      try {
+        setCurrentUser(JSON.parse(sessionStr));
+      } catch (e) {}
       setAuthorized(true);
     }
 
@@ -115,84 +119,6 @@ export default function UsrLayout({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // If no crew has been set, show beautiful modal overlay setup screen
-  if (!activeCrew) {
-    const vehicleOptions = vehicles.map(v => ({ value: v.id, label: `${v.license_plate} - ${v.type}` }));
-    const userOptions = users.map(u => ({ value: u.id, label: `${u.name} (${u.pay_n})` }));
-
-    return (
-      <div className="flex flex-1 flex-col bg-slate-900 text-white min-h-screen">
-        <Header title="AmbuLog USR" showBackToPortal={true} subtitle="Configurazione Iniziale" />
-        
-        <main className="flex-1 max-w-md mx-auto w-full px-5 py-8 flex flex-col justify-center animate-slide-in">
-          <div className="glass-panel p-6 rounded-2xl border-slate-800 bg-slate-950/80">
-            <div className="flex flex-col items-center text-center gap-3 mb-6">
-              <div className="h-12 w-12 rounded-xl bg-teal-500/20 text-teal-400 flex items-center justify-center">
-                <Users className="h-6 w-6" />
-              </div>
-              <h2 className="text-xl font-bold tracking-tight">Equipaggio Attivo</h2>
-              <p className="text-xs text-slate-400">
-                Prima di visualizzare o creare trasporti, configura il mezzo e il personale in servizio per questo turno.
-              </p>
-            </div>
-
-            <form onSubmit={handleSetupCrew} className="flex flex-col gap-4">
-              <FormField
-                label="Seleziona Mezzo"
-                id="setup-vehicle"
-                type="select"
-                placeholder="-- Scegli un Mezzo --"
-                value={selectedVehicle}
-                onChange={setSelectedVehicle}
-                options={vehicleOptions}
-                required
-              />
-
-              <FormField
-                label="Autista (A)"
-                id="setup-driver"
-                type="select"
-                placeholder="-- Seleziona Autista --"
-                value={selectedDriver}
-                onChange={setSelectedDriver}
-                options={userOptions}
-                required
-              />
-
-              <FormField
-                label="Capo Equipaggio (CE)"
-                id="setup-ce"
-                type="select"
-                placeholder="-- Seleziona CE/Soccorritore --"
-                value={selectedCE}
-                onChange={setSelectedCE}
-                options={userOptions}
-                required
-              />
-
-              <FormField
-                label="Terzo Soccorritore (Opzionale)"
-                id="setup-third"
-                type="select"
-                placeholder="-- Nessun Terzo --"
-                value={selectedThird}
-                onChange={setSelectedThird}
-                options={userOptions}
-              />
-
-              <button
-                type="submit"
-                className="btn-touch w-full bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold shadow-lg shadow-teal-600/20 mt-2 text-base transition-colors"
-              >
-                Inizia Turno
-              </button>
-            </form>
-          </div>
-        </main>
-      </div>
-    );
-  }
-
   // Active crew logged in
   const navItems = [
     { href: '/usr', icon: Home, label: 'Home' },
@@ -202,21 +128,27 @@ export default function UsrLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex flex-col flex-1 pb-20 md:pb-0 min-h-screen bg-slate-50 dark:bg-slate-950 font-sans">
-      <Header title="AmbuLog USR" subtitle={`Equipaggio: ${activeCrew.vehiclePlate}`} showBackToPortal={true} />
+      <Header 
+        title="AmbuLog USR" 
+        subtitle={activeCrew ? `Equipaggio: ${activeCrew.vehiclePlate}` : (currentUser ? `Operatore: ${currentUser.name}` : 'Servizi Sanitari')} 
+        showBackToPortal={true} 
+      />
       
-      {/* Active Shift Strip */}
-      <div className="bg-teal-500/10 border-b border-teal-500/20 text-xs px-4 py-2 font-medium flex items-center justify-between text-teal-700 dark:text-teal-400">
-        <span className="flex items-center gap-1.5">
-          <Truck className="h-3.5 w-3.5" />
-          <span>A: <b>{activeCrew.aName.split(' ')[0]}</b> | CE: <b>{activeCrew.ceName.split(' ')[0]}</b> {activeCrew.thirdName && `| 3°: ${activeCrew.thirdName.split(' ')[0]}`}</span>
-        </span>
-        <button 
-          onClick={handleChangeCrew}
-          className="underline hover:no-underline font-semibold"
-        >
-          Cambia
-        </button>
-      </div>
+      {/* Active Shift Strip (Optional) */}
+      {activeCrew && (
+        <div className="bg-teal-500/10 border-b border-teal-500/20 text-xs px-4 py-2 font-medium flex items-center justify-between text-teal-700 dark:text-teal-400">
+          <span className="flex items-center gap-1.5">
+            <Truck className="h-3.5 w-3.5" />
+            <span>A: <b>{activeCrew.aName.split(' ')[0]}</b> | CE: <b>{activeCrew.ceName.split(' ')[0]}</b> {activeCrew.thirdName && `| 3°: ${activeCrew.thirdName.split(' ')[0]}`}</span>
+          </span>
+          <button 
+            onClick={handleChangeCrew}
+            className="underline hover:no-underline font-semibold"
+          >
+            Cambia
+          </button>
+        </div>
+      )}
 
       <main className="flex-1 w-full max-w-md mx-auto px-4 py-6 animate-slide-in">
         {children}
