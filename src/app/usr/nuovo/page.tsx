@@ -12,7 +12,8 @@ import {
   Users, 
   Activity, 
   UserCheck, 
-  CreditCard
+  CreditCard,
+  ChevronDown
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import FormField from '@/components/FormField';
@@ -44,12 +45,18 @@ function TransportFormContent() {
   const [activeCrew, setActiveCrew] = useState<any>(null);
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [users, setUsers] = useState<any[]>([]);
-  const [currentStep, setCurrentStep] = useState(1);
+  const [openSections, setOpenSections] = useState({
+    s1: true,
+    s2: false,
+    s3: false,
+    s4: false,
+  });
+  const [isPatientLogisticsOpen, setIsPatientLogisticsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
-    // Step 1: Info Servizio & Equipaggio
+    // Section 1: Info Servizio & Equipaggio
     date: new Date().toISOString().split('T')[0],
     vehicle_id: '',
     driver_name: '', // A
@@ -60,7 +67,7 @@ function TransportFormContent() {
     transport_type: 'altro',
     trip_type: 'andata',
 
-    // Step 2: Percorso & Orari
+    // Section 2: Percorso & Orari
     origin: '',
     destination: '',
     start_time: '',
@@ -70,7 +77,7 @@ function TransportFormContent() {
     km_end: 0,
     km_total: 0,
 
-    // Step 3: Dati Paziente & Logistica
+    // Sub-section Dati Paziente & Logistica (nested in Section 2)
     patient_name: '',
     patient_address: '',
     patient_phone: '',
@@ -83,14 +90,14 @@ function TransportFormContent() {
     oxygen_qty: '',
     conditions: '',
 
-    // Step 4: Dati Cliente (Fatturazione)
+    // Section 3: Dati Cliente (Fatturazione)
     is_client_different: false,
     client_name: '',
     client_phone: '',
     client_email: '',
     notes: '',
 
-    // Step 5: Chiusura
+    // Section 4: Chiusura
     receipt_number: '',
     cost: '',
     payment_method: 'contanti',
@@ -231,15 +238,21 @@ function TransportFormContent() {
     loadSelectedTransport();
   }, [transportId]);
 
-  const handleNext = () => {
-    // Simple page validations
-    if (currentStep === 1) {
-      if (!formData.requester_name || !formData.patient_name) {
-        alert('Nome Richiedente e Nome Paziente sono obbligatori!');
+  const toggleSection = (section: 's1' | 's2' | 's3' | 's4') => {
+    setOpenSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
+  const handleNextSection = (current: 's1' | 's2' | 's3', next: 's2' | 's3' | 's4') => {
+    if (current === 's1') {
+      if (!formData.date || !formData.vehicle_id || !formData.driver_name || !formData.ce_name) {
+        alert('I campi dell\'equipaggio (Data, Mezzo, Autista, Capo Equipaggio) sono obbligatori!');
         return;
       }
     }
-    if (currentStep === 2) {
+    if (current === 's2') {
       if (!formData.origin || !formData.destination) {
         alert('Luogo di Partenza e Luogo di Arrivo sono obbligatori!');
         return;
@@ -249,7 +262,7 @@ function TransportFormContent() {
         return;
       }
     }
-    if (currentStep === 4) {
+    if (current === 's3') {
       if (formData.is_client_different && !formData.client_name) {
         alert('Inserisci il Nome del Cliente pagante!');
         return;
@@ -260,17 +273,50 @@ function TransportFormContent() {
       }
     }
 
-    setCurrentStep(prev => prev + 1);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+    setOpenSections(prev => ({
+      ...prev,
+      [current]: false,
+      [next]: true
+    }));
 
-  const handleBack = () => {
-    setCurrentStep(prev => prev - 1);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setTimeout(() => {
+      const el = document.getElementById(`section-header-${next}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 100);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Final validations before submitting
+    if (!formData.date || !formData.vehicle_id || !formData.driver_name || !formData.ce_name) {
+      alert('I campi dell\'equipaggio (Data, Mezzo, Autista, Capo Equipaggio) sono obbligatori!');
+      setOpenSections(p => ({ ...p, s1: true }));
+      return;
+    }
+    if (!formData.origin || !formData.destination) {
+      alert('Luogo di Partenza e Luogo di Arrivo sono obbligatori!');
+      setOpenSections(p => ({ ...p, s2: true }));
+      return;
+    }
+    if (formData.km_end > 0 && formData.km_end < formData.km_start) {
+      alert('I Chilometri Finali non possono essere inferiori a quelli Iniziali!');
+      setOpenSections(p => ({ ...p, s2: true }));
+      return;
+    }
+    if (formData.is_client_different && !formData.client_name) {
+      alert('Inserisci il Nome del Cliente pagante!');
+      setOpenSections(p => ({ ...p, s3: true }));
+      return;
+    }
+    if (formData.is_client_different && formData.client_email && !formData.client_email.includes('@')) {
+      alert('Inserisci un indirizzo Email valido per l\'invio della fattura!');
+      setOpenSections(p => ({ ...p, s3: true }));
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -287,8 +333,8 @@ function TransportFormContent() {
       const dbPayload = {
         status: transportId ? 'completato' as const : 'completato' as const, // Save directly as completed from mobile
         date: formData.date,
-        requester_name: formData.requester_name,
-        requester_phone: formData.requester_phone,
+        requester_name: formData.requester_name || null,
+        requester_phone: formData.requester_phone || null,
         transport_type: formData.transport_type as any,
         trip_type: formData.trip_type as any,
         origin: formData.origin,
@@ -300,9 +346,9 @@ function TransportFormContent() {
         km_start: Number(formData.km_start) || 0,
         km_end: Number(formData.km_end) || 0,
         km_total: Number(formData.km_total) || 0,
-        patient_name: formData.patient_name,
-        patient_address: formData.patient_address,
-        patient_phone: formData.patient_phone,
+        patient_name: formData.patient_name || '-',
+        patient_address: formData.patient_address || null,
+        patient_phone: formData.patient_phone || null,
         transport_method: formData.transport_method as any,
         floor: Number(formData.floor) || 0,
         elevator: formData.elevator,
@@ -310,7 +356,7 @@ function TransportFormContent() {
         weight: formData.weight ? Number(formData.weight) : null,
         oxygen: formData.oxygen ? (formData.oxygen_qty || 'Sì') : 'No',
         conditions: formData.conditions,
-        client_name: formData.is_client_different ? formData.client_name : formData.patient_name,
+        client_name: formData.is_client_different ? (formData.client_name || '-') : (formData.patient_name || '-'),
         client_phone: formData.is_client_different ? formData.client_phone : formData.patient_phone,
         client_email: formData.client_email,
         notes: formData.notes,
@@ -376,18 +422,21 @@ function TransportFormContent() {
     }
   };
 
-  const getStepIcon = (step: number) => {
-    switch (step) {
-      case 1: return <Users className="h-5 w-5" />;
-      case 2: return <MapPin className="h-5 w-5" />;
-      case 3: return <Activity className="h-5 w-5" />;
-      case 4: return <UserCheck className="h-5 w-5" />;
-      case 5: return <CreditCard className="h-5 w-5" />;
-      default: return <Check className="h-5 w-5" />;
-    }
+  const getProgressPercentage = () => {
+    let fields = 0;
+    let total = 8;
+    if (formData.date) fields++;
+    if (formData.vehicle_id) fields++;
+    if (formData.driver_name) fields++;
+    if (formData.ce_name) fields++;
+    if (formData.origin) fields++;
+    if (formData.destination) fields++;
+    if (formData.patient_name) fields++;
+    if (formData.cost || formData.receipt_number) fields++;
+    return Math.round((fields / total) * 100);
   };
 
-  if (loading && currentStep === 1) {
+  if (loading && !formData.vehicle_id) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-slate-400">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-t-teal-600 border-slate-200"></div>
@@ -421,479 +470,635 @@ function TransportFormContent() {
         </div>
       </div>
 
-      {/* Modern Stepper Indicator */}
+      {/* Modern Progress Indicator */}
       <div className="glass-panel p-4 rounded-2xl flex flex-col gap-3">
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-600/10 text-teal-600 dark:text-teal-400">
-              {getStepIcon(currentStep)}
+              <Activity className="h-5 w-5" />
             </div>
             <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Step {currentStep} di 5</span>
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Digitalizzazione Foglio</span>
               <h4 className="text-xs font-bold text-slate-800 dark:text-white mt-0.2">
-                {currentStep === 1 && 'Info Servizio & Equipaggio'}
-                {currentStep === 2 && 'Percorso e Orari'}
-                {currentStep === 3 && 'Dati Paziente & Logistica'}
-                {currentStep === 4 && 'Dati Cliente & Note'}
-                {currentStep === 5 && 'Chiusura e Ricevuta'}
+                Stato di Compilazione Scheda
               </h4>
             </div>
           </div>
-          <span className="text-sm font-extrabold text-teal-600 dark:text-teal-400">{Math.round((currentStep / 5) * 100)}%</span>
+          <span className="text-sm font-extrabold text-teal-600 dark:text-teal-400">{getProgressPercentage()}%</span>
         </div>
         <div className="h-1.5 w-full rounded-full bg-slate-200 dark:bg-slate-800 overflow-hidden">
           <div 
             className="h-full bg-teal-600 transition-all duration-300 rounded-full" 
-            style={{ width: `${(currentStep / 5) * 100}%` }}
+            style={{ width: `${getProgressPercentage()}%` }}
           ></div>
         </div>
       </div>
 
-      {/* Wizard Form */}
+      {/* Accordion Form */}
       <form onSubmit={handleSubmit} className="flex flex-col gap-5">
         
-        {/* STEP 1: INFO SERVIZIO & EQUIPAGGIO */}
-        {currentStep === 1 && (
-          <div className="glass-panel p-5 rounded-2xl flex flex-col gap-4 animate-slide-in">
-            <h3 className="text-sm font-bold border-b pb-2 text-slate-800 dark:text-slate-100 uppercase tracking-wider">Equipaggio e Servizio</h3>
-            
-            <FormField
-              label="Data Servizio"
-              id="f-date"
-              type="date"
-              value={formData.date}
-              onChange={(val) => setFormData(p => ({ ...p, date: val }))}
-              required
-            />
-
-            <FormField
-              label="Mezzo Utilizzato"
-              id="f-vehicle"
-              type="select"
-              value={formData.vehicle_id}
-              onChange={(val) => setFormData(p => ({ ...p, vehicle_id: val }))}
-              options={vOptions}
-              required
-            />
-
-            <div className="grid grid-cols-2 gap-3">
-              <FormField
-                label="Autista"
-                id="f-driver"
-                type="text"
-                value={formData.driver_name}
-                onChange={(val) => setFormData(p => ({ ...p, driver_name: val }))}
-                suggestions={users.map(u => u.name)}
-                required
-              />
-              <FormField
-                label="Capo Equipaggio"
-                id="f-ce"
-                type="text"
-                value={formData.ce_name}
-                onChange={(val) => setFormData(p => ({ ...p, ce_name: val }))}
-                suggestions={users.map(u => u.name)}
-                required
-              />
-            </div>
-
-            <FormField
-              label="Terzo Soccorritore"
-              id="f-third"
-              type="text"
-              value={formData.third_name}
-              onChange={(val) => setFormData(p => ({ ...p, third_name: val }))}
-              suggestions={users.map(u => u.name)}
-              placeholder="Opzionale"
-            />
-
-            <h3 className="text-sm font-bold border-b pb-2 mt-4 text-slate-800 dark:text-slate-100 uppercase tracking-wider">Richiedente</h3>
-            
-            <div className="grid grid-cols-2 gap-3">
-              <FormField
-                label="Nome Richiedente"
-                id="f-req-name"
-                value={formData.requester_name}
-                onChange={(val) => setFormData(p => ({ ...p, requester_name: val }))}
-                placeholder="Es: Ospedale Niguarda"
-                required
-              />
-              <FormField
-                label="Telefono Richiedente"
-                id="f-req-phone"
-                type="tel"
-                value={formData.requester_phone}
-                onChange={(val) => setFormData(p => ({ ...p, requester_phone: val }))}
-                placeholder="Numero contatto"
-              />
-            </div>
-
-            <FormField
-              label="Paziente (Cognome e Nome)"
-              id="f-pat-name"
-              value={formData.patient_name}
-              onChange={(val) => setFormData(p => ({ ...p, patient_name: val }))}
-              placeholder="Cognome Nome"
-              required
-            />
-
-            <div className="grid grid-cols-2 gap-4 mt-2">
-              <FormField
-                label="Tipologia Trasporto"
-                id="f-trans-type"
-                type="select"
-                value={formData.transport_type}
-                onChange={(val) => setFormData(p => ({ ...p, transport_type: val }))}
-                options={[
-                  { value: 'dimissione', label: 'Dimissione' },
-                  { value: 'trasferimento', label: 'Trasferimento' },
-                  { value: 'visita', label: 'Visita' },
-                  { value: 'altro', label: 'Altro' },
-                ]}
-              />
-              <FormField
-                label="Tipo Servizio"
-                id="f-trip-type"
-                type="select"
-                value={formData.trip_type}
-                onChange={(val) => setFormData(p => ({ ...p, trip_type: val }))}
-                options={[
-                  { value: 'andata', label: 'Andata' },
-                  { value: 'ritorno', label: 'Ritorno' },
-                  { value: 'a/r', label: 'Andata / Ritorno' },
-                ]}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* STEP 2: PERCORSO E ORARI */}
-        {currentStep === 2 && (
-          <div className="glass-panel p-5 rounded-2xl flex flex-col gap-4 animate-slide-in">
-            <h3 className="text-sm font-bold border-b pb-2 text-slate-800 dark:text-slate-100 uppercase tracking-wider">Itinerario</h3>
-            
-            <FormField
-              label="Luogo di Partenza (Da)"
-              id="f-origin"
-              value={formData.origin}
-              onChange={(val) => setFormData(p => ({ ...p, origin: val }))}
-              suggestions={FREQUENT_PLACES}
-              placeholder="Città, Via o Ospedale"
-              required
-            />
-
-            <FormField
-              label="Luogo di Arrivo (A)"
-              id="f-dest"
-              value={formData.destination}
-              onChange={(val) => setFormData(p => ({ ...p, destination: val }))}
-              suggestions={FREQUENT_PLACES}
-              placeholder="Città, Via o Ospedale"
-              required
-            />
-
-            <h3 className="text-sm font-bold border-b pb-2 mt-4 text-slate-800 dark:text-slate-100 uppercase tracking-wider">Orari & Odometer</h3>
-
-            <div className="grid grid-cols-2 gap-3">
-              <FormField
-                label="Ora Inizio"
-                id="f-start-time"
-                type="time"
-                value={formData.start_time}
-                onChange={(val) => setFormData(p => ({ ...p, start_time: val }))}
-              />
-              <FormField
-                label="Ora Fine"
-                id="f-end-time"
-                type="time"
-                value={formData.end_time}
-                onChange={(val) => setFormData(p => ({ ...p, end_time: val }))}
-              />
-            </div>
-
-            <FormField
-              label="Ore Sosta (Attesa)"
-              id="f-wait"
-              type="number"
-              value={formData.wait_hours}
-              onChange={(val) => setFormData(p => ({ ...p, wait_hours: val }))}
-              placeholder="Ore d'attesa"
-            />
-
-            <div className="grid grid-cols-3 gap-2.5 mt-2 bg-slate-100/50 dark:bg-slate-900/50 p-3 rounded-xl border">
-              <FormField
-                label="Km Inizio"
-                id="f-km-start"
-                type="number"
-                value={formData.km_start}
-                onChange={(val) => setFormData(p => ({ ...p, km_start: val }))}
-              />
-              <FormField
-                label="Km Fine"
-                id="f-km-end"
-                type="number"
-                value={formData.km_end}
-                onChange={(val) => setFormData(p => ({ ...p, km_end: val }))}
-              />
-              <div className="flex flex-col gap-1.5 justify-center items-center text-center">
-                <span className="text-[10px] font-bold text-slate-400 uppercase">Km Totali</span>
-                <span className="text-xl font-black text-teal-600 dark:text-teal-400">
-                  {formData.km_total}
-                </span>
+        {/* SECTION 1: EQUIPAGGIO E SERVIZIO */}
+        <div id="section-header-s1" className="glass-panel rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 transition">
+          {/* Header */}
+          <button
+            type="button"
+            onClick={() => toggleSection('s1')}
+            className="w-full flex items-center justify-between p-5 bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800 text-left hover:bg-slate-100/50 dark:hover:bg-slate-850/50 transition"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-600/10 text-teal-600 dark:text-teal-400">
+                <Users className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+                  1. Equipaggio e Servizio
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {formData.driver_name ? `${formData.driver_name} • ${formData.ce_name || 'CE'}` : 'Inserisci i membri dell\'equipaggio'}
+                </p>
               </div>
             </div>
-          </div>
-        )}
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-800 text-slate-450 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-350 bg-white dark:bg-slate-900">
+              <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${openSections.s1 ? 'rotate-180' : ''}`} />
+            </div>
+          </button>
 
-        {/* STEP 3: DATI PAZIENTE & LOGISTICA */}
-        {currentStep === 3 && (
-          <div className="glass-panel p-5 rounded-2xl flex flex-col gap-4 animate-slide-in">
-            <h3 className="text-sm font-bold border-b pb-2 text-slate-800 dark:text-slate-100 uppercase tracking-wider">Logistica Paziente</h3>
-            
-            <FormField
-              label="Indirizzo Paziente"
-              id="f-pat-addr"
-              value={formData.patient_address}
-              onChange={(val) => setFormData(p => ({ ...p, patient_address: val }))}
-              placeholder="Indirizzo di residenza"
-            />
-
-            <FormField
-              label="Telefono Paziente"
-              id="f-pat-phone"
-              type="tel"
-              value={formData.patient_phone}
-              onChange={(val) => setFormData(p => ({ ...p, patient_phone: val }))}
-              placeholder="Es: 348 1234567"
-            />
-
-            <div className="grid grid-cols-2 gap-4 bg-slate-100/30 dark:bg-slate-900/30 p-3.5 rounded-xl border">
+          {/* Content */}
+          {openSections.s1 && (
+            <div className="p-5 flex flex-col gap-4 animate-slide-in">
               <FormField
-                label="Trasporto In"
-                id="f-method"
+                label="Data Servizio"
+                id="f-date"
+                type="date"
+                value={formData.date}
+                onChange={(val) => setFormData(p => ({ ...p, date: val }))}
+                required
+              />
+
+              <FormField
+                label="Mezzo Utilizzato"
+                id="f-vehicle"
                 type="select"
-                value={formData.transport_method}
-                onChange={(val) => setFormData(p => ({ ...p, transport_method: val }))}
-                options={[
-                  { value: 'barella', label: 'Barella' },
-                  { value: 'sedia', label: 'Sedia portantina' },
-                ]}
+                value={formData.vehicle_id}
+                onChange={(val) => setFormData(p => ({ ...p, vehicle_id: val }))}
+                options={vOptions}
+                required
               />
 
-              <FormField
-                label="Piano Casa"
-                id="f-floor"
-                type="number"
-                value={formData.floor}
-                onChange={(val) => setFormData(p => ({ ...p, floor: val }))}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <FormField
-                label="Presenza Ascensore"
-                id="f-elevator"
-                type="toggle"
-                placeholder={formData.elevator ? 'Sì, utilizzabile' : 'No ascensore'}
-                value={formData.elevator}
-                onChange={(val) => setFormData(p => ({ ...p, elevator: val }))}
-              />
-
-              <FormField
-                label="Accompagnato"
-                id="f-accompanied"
-                type="toggle"
-                placeholder={formData.accompanied ? 'Sì, presente' : 'No accompagnatore'}
-                value={formData.accompanied}
-                onChange={(val) => setFormData(p => ({ ...p, accompanied: val }))}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <FormField
-                label="Peso Paziente (Kg)"
-                id="f-weight"
-                type="number"
-                value={formData.weight}
-                onChange={(val) => setFormData(p => ({ ...p, weight: val }))}
-                placeholder="Kg"
-              />
-
-              <FormField
-                label="Necessita Ossigeno"
-                id="f-oxygen"
-                type="toggle"
-                placeholder={formData.oxygen ? 'Sì, attivo' : 'No ossigeno'}
-                value={formData.oxygen}
-                onChange={(val) => setFormData(p => ({ ...p, oxygen: val }))}
-              />
-            </div>
-
-            {formData.oxygen && (
-              <FormField
-                label="Quantità / Flusso Ossigeno"
-                id="f-oxy-qty"
-                value={formData.oxygen_qty}
-                onChange={(val) => setFormData(p => ({ ...p, oxygen_qty: val }))}
-                placeholder="Es: 2L/min o 5L"
-              />
-            )}
-
-            <FormField
-              label="Condizioni Cliniche / Diagnosi"
-              id="f-cond"
-              type="textarea"
-              value={formData.conditions}
-              onChange={(val) => setFormData(p => ({ ...p, conditions: val }))}
-              placeholder="Es: Paziente stabile, debolezza post-operatoria, impossibilitato a deambulare."
-            />
-          </div>
-        )}
-
-        {/* STEP 4: DATI CLIENTE & NOTE */}
-        {currentStep === 4 && (
-          <div className="glass-panel p-5 rounded-2xl flex flex-col gap-4 animate-slide-in">
-            <h3 className="text-sm font-bold border-b pb-2 text-slate-800 dark:text-slate-100 uppercase tracking-wider">Fatturazione / Ricevuta</h3>
-            
-            <FormField
-              label="Cliente diverso da Paziente?"
-              id="f-client-diff"
-              type="toggle"
-              placeholder={formData.is_client_different ? 'Sì, fattura a terzi' : 'No, intestato a paziente'}
-              value={formData.is_client_different}
-              onChange={(val) => setFormData(p => ({ ...p, is_client_different: val }))}
-            />
-
-            {formData.is_client_different && (
-              <div className="flex flex-col gap-4 p-4 border rounded-xl bg-slate-100/30 dark:bg-slate-900/30">
+              <div className="grid grid-cols-2 gap-3">
                 <FormField
-                  label="Nome Intestatario Fattura"
-                  id="f-client-name"
-                  value={formData.client_name}
-                  onChange={(val) => setFormData(p => ({ ...p, client_name: val }))}
-                  placeholder="Cognome e Nome o Ragione Sociale"
+                  label="Autista"
+                  id="f-driver"
+                  type="text"
+                  value={formData.driver_name}
+                  onChange={(val) => setFormData(p => ({ ...p, driver_name: val }))}
+                  suggestions={users.map(u => u.name)}
                   required
                 />
-                
-                <div className="grid grid-cols-2 gap-3">
-                  <FormField
-                    label="Telefono Cliente"
-                    id="f-client-phone"
-                    type="tel"
-                    value={formData.client_phone}
-                    onChange={(val) => setFormData(p => ({ ...p, client_phone: val }))}
-                    placeholder="Contatto"
-                  />
-                  <FormField
-                    label="Email (Obbligatoria per Fattura)"
-                    id="f-client-email"
-                    type="email"
-                    value={formData.client_email}
-                    onChange={(val) => setFormData(p => ({ ...p, client_email: val }))}
-                    placeholder="email@dominio.it"
-                  />
-                </div>
+                <FormField
+                  label="Capo Equipaggio"
+                  id="f-ce"
+                  type="text"
+                  value={formData.ce_name}
+                  onChange={(val) => setFormData(p => ({ ...p, ce_name: val }))}
+                  suggestions={users.map(u => u.name)}
+                  required
+                />
               </div>
-            )}
 
-            <FormField
-              label="Note Servizio"
-              id="f-notes"
-              type="textarea"
-              value={formData.notes}
-              onChange={(val) => setFormData(p => ({ ...p, notes: val }))}
-              placeholder="Eventuali note di consegna, orari, contatti parenti, problematiche logistiche..."
-            />
-          </div>
-        )}
+              <FormField
+                label="Terzo Soccorritore"
+                id="f-third"
+                type="text"
+                value={formData.third_name}
+                onChange={(val) => setFormData(p => ({ ...p, third_name: val }))}
+                suggestions={users.map(u => u.name)}
+                placeholder="Opzionale"
+              />
 
-        {/* STEP 5: CHIUSURA E RICEVUTA */}
-        {currentStep === 5 && (
-          <div className="glass-panel p-5 rounded-2xl flex flex-col gap-4 animate-slide-in">
-            <h3 className="text-sm font-bold border-b pb-2 text-slate-800 dark:text-slate-100 uppercase tracking-wider">Archiviazione & Pagamento</h3>
-            
-            <FormField
-              label="Ricevuta Cartacea N."
-              id="f-receipt"
-              type="number"
-              value={formData.receipt_number}
-              onChange={(val) => setFormData(p => ({ ...p, receipt_number: val }))}
-              placeholder="Numero ricevuta blocco"
-            />
+              <h3 className="text-sm font-bold border-b pb-2 mt-4 text-slate-800 dark:text-slate-100 uppercase tracking-wider">Richiedente & Paziente</h3>
+              
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  label="Nome Richiedente"
+                  id="f-req-name"
+                  value={formData.requester_name}
+                  onChange={(val) => setFormData(p => ({ ...p, requester_name: val }))}
+                  placeholder="Es: Ospedale Niguarda"
+                />
+                <FormField
+                  label="Telefono Richiedente"
+                  id="f-req-phone"
+                  type="tel"
+                  value={formData.requester_phone}
+                  onChange={(val) => setFormData(p => ({ ...p, requester_phone: val }))}
+                  placeholder="Numero contatto"
+                />
+              </div>
 
-            <FormField
-              label="Costo Servizio (€)"
-              id="f-cost"
-              type="number"
-              value={formData.cost}
-              onChange={(val) => setFormData(p => ({ ...p, cost: val }))}
-              placeholder="Es: 150.00"
-            />
+              <FormField
+                label="Paziente (Cognome e Nome)"
+                id="f-pat-name"
+                value={formData.patient_name}
+                onChange={(val) => setFormData(p => ({ ...p, patient_name: val }))}
+                placeholder="Cognome Nome"
+              />
 
-            <FormField
-              label="Metodo di Pagamento"
-              id="f-pay-method"
-              type="select"
-              value={formData.payment_method}
-              onChange={(val) => setFormData(p => ({ ...p, payment_method: val }))}
-              options={[
-                { value: 'contanti', label: 'Contanti' },
-                { value: 'pos', label: 'POS (Carta/Bancomat)' },
-                { value: 'bonifico', label: 'Bonifico Bancario' },
-                { value: 'buono', label: 'Buono Servizio / Convenzione' },
-              ]}
-            />
+              <div className="grid grid-cols-2 gap-4 mt-2">
+                <FormField
+                  label="Tipologia Trasporto"
+                  id="f-trans-type"
+                  type="select"
+                  value={formData.transport_type}
+                  onChange={(val) => setFormData(p => ({ ...p, transport_type: val }))}
+                  options={[
+                    { value: 'dimissione', label: 'Dimissione' },
+                    { value: 'trasferimento', label: 'Trasferimento' },
+                    { value: 'visita', label: 'Visita' },
+                    { value: 'altro', label: 'Altro' },
+                  ]}
+                />
+                <FormField
+                  label="Tipo Servizio"
+                  id="f-trip-type"
+                  type="select"
+                  value={formData.trip_type}
+                  onChange={(val) => setFormData(p => ({ ...p, trip_type: val }))}
+                  options={[
+                    { value: 'andata', label: 'Andata' },
+                    { value: 'ritorno', label: 'Ritorno' },
+                    { value: 'a/r', label: 'Andata / Ritorno' },
+                  ]}
+                />
+              </div>
 
-            <div className="mt-4 p-4 border border-teal-500/20 bg-teal-500/[0.03] rounded-xl flex flex-col gap-2">
-              <span className="text-xs font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider">Riepilogo finale</span>
-              <div className="grid grid-cols-2 text-xs font-medium text-slate-500 dark:text-slate-400 gap-1.5">
-                <span>Paziente: <b>{formData.patient_name}</b></span>
-                <span>Mezzo: <b>{formData.vehicle_id ? vehicles.find(v => v.id === formData.vehicle_id)?.license_plate : '--'}</b></span>
-                <span className="col-span-2">Percorso: <b>{formData.origin.substring(0, 20)}... → {formData.destination.substring(0, 20)}...</b></span>
-                <span className="col-span-2 text-teal-700 dark:text-teal-400 font-bold mt-1 text-sm">
-                  Costo: {formData.cost || '0'} € | Pagamento: {formData.payment_method.toUpperCase()}
-                </span>
+              <div className="flex justify-end mt-4">
+                <button
+                  type="button"
+                  onClick={() => handleNextSection('s1', 's2')}
+                  className="btn-touch bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-bold"
+                >
+                  Continua <ArrowRight className="h-4 w-4" />
+                </button>
               </div>
             </div>
-          </div>
-        )}
-
-        {/* Navigation Buttons */}
-        <div className="flex items-center justify-between gap-4 mt-2">
-          {currentStep > 1 ? (
-            <button
-              type="button"
-              onClick={handleBack}
-              className="btn-touch flex-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200/80 dark:hover:bg-slate-800 rounded-xl"
-            >
-              <ArrowLeft className="h-4.5 w-4.5" /> Indietro
-            </button>
-          ) : (
-            <div className="flex-1"></div>
           )}
+        </div>
 
-          {currentStep < 5 ? (
-            <button
-              type="button"
-              onClick={handleNext}
-              className="btn-touch flex-1 bg-teal-600 hover:bg-teal-700 text-white rounded-xl shadow-lg shadow-teal-500/10"
-            >
-              Avanti <ArrowRight className="h-4.5 w-4.5" />
-            </button>
-          ) : (
-            <button
-              type="submit"
-              disabled={loading}
-              className="btn-touch flex-[1.5] bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg shadow-emerald-500/20 font-extrabold text-base"
-            >
-              {loading ? (
-                <div className="h-5 w-5 animate-spin rounded-full border-2 border-t-white border-white/20"></div>
-              ) : (
-                <>
-                  <Check className="h-5 w-5" /> Termina Trasporto
-                </>
+        {/* SECTION 2: PERCORSO, ORARI & LOGISTICA */}
+        <div id="section-header-s2" className="glass-panel rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 transition">
+          {/* Header */}
+          <button
+            type="button"
+            onClick={() => toggleSection('s2')}
+            className="w-full flex items-center justify-between p-5 bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800 text-left hover:bg-slate-100/50 dark:hover:bg-slate-850/50 transition"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-600/10 text-teal-600 dark:text-teal-400">
+                <MapPin className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+                  2. Percorso, Orari & Logistica
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {formData.origin ? `${formData.origin.substring(0, 15)}... → ${formData.destination.substring(0, 15)}...` : 'Compila itinerario e orari'}
+                </p>
+              </div>
+            </div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-800 text-slate-450 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-350 bg-white dark:bg-slate-900">
+              <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${openSections.s2 ? 'rotate-180' : ''}`} />
+            </div>
+          </button>
+
+          {/* Content */}
+          {openSections.s2 && (
+            <div className="p-5 flex flex-col gap-4 animate-slide-in">
+              <FormField
+                label="Luogo di Partenza (Da)"
+                id="f-origin"
+                value={formData.origin}
+                onChange={(val) => setFormData(p => ({ ...p, origin: val }))}
+                suggestions={FREQUENT_PLACES}
+                placeholder="Città, Via o Ospedale"
+                required
+              />
+
+              <FormField
+                label="Luogo di Arrivo (A)"
+                id="f-dest"
+                value={formData.destination}
+                onChange={(val) => setFormData(p => ({ ...p, destination: val }))}
+                suggestions={FREQUENT_PLACES}
+                placeholder="Città, Via o Ospedale"
+                required
+              />
+
+              <h3 className="text-sm font-bold border-b pb-2 mt-4 text-slate-800 dark:text-slate-100 uppercase tracking-wider">Orari & Odometer</h3>
+
+              <div className="grid grid-cols-2 gap-3">
+                <FormField
+                  label="Ora Inizio"
+                  id="f-start-time"
+                  type="time"
+                  value={formData.start_time}
+                  onChange={(val) => setFormData(p => ({ ...p, start_time: val }))}
+                />
+                <FormField
+                  label="Ora Fine"
+                  id="f-end-time"
+                  type="time"
+                  value={formData.end_time}
+                  onChange={(val) => setFormData(p => ({ ...p, end_time: val }))}
+                />
+              </div>
+
+              <FormField
+                label="Ore Sosta (Attesa)"
+                id="f-wait"
+                type="number"
+                value={formData.wait_hours}
+                onChange={(val) => setFormData(p => ({ ...p, wait_hours: val }))}
+                placeholder="Ore d'attesa"
+              />
+
+              <div className="grid grid-cols-3 gap-2.5 mt-2 bg-slate-100/50 dark:bg-slate-900/50 p-3 rounded-xl border">
+                <FormField
+                  label="Km Inizio"
+                  id="f-km-start"
+                  type="number"
+                  value={formData.km_start}
+                  onChange={(val) => setFormData(p => ({ ...p, km_start: val }))}
+                />
+                <FormField
+                  label="Km Fine"
+                  id="f-km-end"
+                  type="number"
+                  value={formData.km_end}
+                  onChange={(val) => setFormData(p => ({ ...p, km_end: val }))}
+                />
+                <div className="flex flex-col gap-1.5 justify-center items-center text-center">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Km Totali</span>
+                  <span className="text-xl font-black text-teal-600 dark:text-teal-400">
+                    {formData.km_total}
+                  </span>
+                </div>
+              </div>
+
+              {/* Collapsible Patient Logistics Sub-section */}
+              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden mt-4">
+                <button
+                  type="button"
+                  onClick={() => setIsPatientLogisticsOpen(!isPatientLogisticsOpen)}
+                  className="w-full flex items-center justify-between p-4 bg-slate-100/40 dark:bg-slate-900/40 text-left hover:bg-slate-100/60 dark:hover:bg-slate-850/40 transition"
+                >
+                  <div className="flex items-center gap-2">
+                    <Activity className="h-4.5 w-4.5 text-teal-600 dark:text-teal-400" />
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">
+                      Logistica Dettagliata Paziente
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-slate-400 font-semibold">
+                      {isPatientLogisticsOpen ? 'Nascondi' : 'Espandi'}
+                    </span>
+                    <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 ${isPatientLogisticsOpen ? 'rotate-180' : ''}`} />
+                  </div>
+                </button>
+
+                {isPatientLogisticsOpen && (
+                  <div className="p-4 bg-slate-100/10 dark:bg-slate-900/10 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-4 animate-slide-in">
+                    <FormField
+                      label="Indirizzo Paziente"
+                      id="f-pat-addr"
+                      value={formData.patient_address}
+                      onChange={(val) => setFormData(p => ({ ...p, patient_address: val }))}
+                      placeholder="Indirizzo di residenza"
+                    />
+
+                    <FormField
+                      label="Telefono Paziente"
+                      id="f-pat-phone"
+                      type="tel"
+                      value={formData.patient_phone}
+                      onChange={(val) => setFormData(p => ({ ...p, patient_phone: val }))}
+                      placeholder="Es: 348 1234567"
+                    />
+
+                    <div className="grid grid-cols-2 gap-4 bg-slate-100/30 dark:bg-slate-900/30 p-3.5 rounded-xl border">
+                      <FormField
+                        label="Trasporto In"
+                        id="f-method"
+                        type="select"
+                        value={formData.transport_method}
+                        onChange={(val) => setFormData(p => ({ ...p, transport_method: val }))}
+                        options={[
+                          { value: 'barella', label: 'Barella' },
+                          { value: 'sedia', label: 'Sedia portantina' },
+                        ]}
+                      />
+
+                      <FormField
+                        label="Piano Casa"
+                        id="f-floor"
+                        type="number"
+                        value={formData.floor}
+                        onChange={(val) => setFormData(p => ({ ...p, floor: val }))}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <FormField
+                        label="Presenza Ascensore"
+                        id="f-elevator"
+                        type="toggle"
+                        placeholder={formData.elevator ? 'Sì, utilizzabile' : 'No ascensore'}
+                        value={formData.elevator}
+                        onChange={(val) => setFormData(p => ({ ...p, elevator: val }))}
+                      />
+
+                      <FormField
+                        label="Accompagnato"
+                        id="f-accompanied"
+                        type="toggle"
+                        placeholder={formData.accompanied ? 'Sì, presente' : 'No accompagnatore'}
+                        value={formData.accompanied}
+                        onChange={(val) => setFormData(p => ({ ...p, accompanied: val }))}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <FormField
+                        label="Peso Paziente (Kg)"
+                        id="f-weight"
+                        type="number"
+                        value={formData.weight}
+                        onChange={(val) => setFormData(p => ({ ...p, weight: val }))}
+                        placeholder="Kg"
+                      />
+
+                      <FormField
+                        label="Necessita Ossigeno"
+                        id="f-oxygen"
+                        type="toggle"
+                        placeholder={formData.oxygen ? 'Sì, attivo' : 'No ossigeno'}
+                        value={formData.oxygen}
+                        onChange={(val) => setFormData(p => ({ ...p, oxygen: val }))}
+                      />
+                    </div>
+
+                    {formData.oxygen && (
+                      <FormField
+                        label="Quantità / Flusso Ossigeno"
+                        id="f-oxy-qty"
+                        value={formData.oxygen_qty}
+                        onChange={(val) => setFormData(p => ({ ...p, oxygen_qty: val }))}
+                        placeholder="Es: 2L/min o 5L"
+                      />
+                    )}
+
+                    <FormField
+                      label="Condizioni Cliniche / Diagnosi"
+                      id="f-cond"
+                      type="textarea"
+                      value={formData.conditions}
+                      onChange={(val) => setFormData(p => ({ ...p, conditions: val }))}
+                      placeholder="Es: Paziente stabile, debolezza post-operatoria, impossibilitato a deambulare."
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-between mt-4 gap-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenSections(p => ({ ...p, s2: false, s1: true }));
+                    setTimeout(() => {
+                      document.getElementById('section-header-s1')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 50);
+                  }}
+                  className="btn-touch flex-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200/80 rounded-xl text-xs"
+                >
+                  <ArrowLeft className="h-4 w-4" /> Indietro
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleNextSection('s2', 's3')}
+                  className="btn-touch flex-1 bg-teal-650 hover:bg-teal-700 text-white rounded-xl text-xs font-bold"
+                >
+                  Continua <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* SECTION 3: FATTURAZIONE E NOTE */}
+        <div id="section-header-s3" className="glass-panel rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 transition">
+          {/* Header */}
+          <button
+            type="button"
+            onClick={() => toggleSection('s3')}
+            className="w-full flex items-center justify-between p-5 bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800 text-left hover:bg-slate-100/50 dark:hover:bg-slate-850/50 transition"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-600/10 text-teal-600 dark:text-teal-400">
+                <UserCheck className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+                  3. Fatturazione & Note
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {formData.is_client_different ? `Intestatario: ${formData.client_name || 'Terzo'}` : 'Intestato al paziente / Note'}
+                </p>
+              </div>
+            </div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-800 text-slate-450 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-350 bg-white dark:bg-slate-900">
+              <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${openSections.s3 ? 'rotate-180' : ''}`} />
+            </div>
+          </button>
+
+          {/* Content */}
+          {openSections.s3 && (
+            <div className="p-5 flex flex-col gap-4 animate-slide-in">
+              <FormField
+                label="Cliente diverso da Paziente?"
+                id="f-client-diff"
+                type="toggle"
+                placeholder={formData.is_client_different ? 'Sì, fattura a terzi' : 'No, intestato a paziente'}
+                value={formData.is_client_different}
+                onChange={(val) => setFormData(p => ({ ...p, is_client_different: val }))}
+              />
+
+              {formData.is_client_different && (
+                <div className="flex flex-col gap-4 p-4 border rounded-xl bg-slate-100/30 dark:bg-slate-900/30">
+                  <FormField
+                    label="Nome Intestatario Fattura"
+                    id="f-client-name"
+                    value={formData.client_name}
+                    onChange={(val) => setFormData(p => ({ ...p, client_name: val }))}
+                    placeholder="Cognome e Nome o Ragione Sociale"
+                    required
+                  />
+                  
+                  <div className="grid grid-cols-2 gap-3">
+                    <FormField
+                      label="Telefono Cliente"
+                      id="f-client-phone"
+                      type="tel"
+                      value={formData.client_phone}
+                      onChange={(val) => setFormData(p => ({ ...p, client_phone: val }))}
+                      placeholder="Contatto"
+                    />
+                    <FormField
+                      label="Email (Obbligatoria per Fattura)"
+                      id="f-client-email"
+                      type="email"
+                      value={formData.client_email}
+                      onChange={(val) => setFormData(p => ({ ...p, client_email: val }))}
+                      placeholder="email@dominio.it"
+                    />
+                  </div>
+                </div>
               )}
-            </button>
+
+              <FormField
+                label="Note Servizio"
+                id="f-notes"
+                type="textarea"
+                value={formData.notes}
+                onChange={(val) => setFormData(p => ({ ...p, notes: val }))}
+                placeholder="Eventuali note di consegna, orari, contatti parenti, problematiche logistiche..."
+              />
+
+              <div className="flex justify-between mt-4 gap-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenSections(p => ({ ...p, s3: false, s2: true }));
+                    setTimeout(() => {
+                      document.getElementById('section-header-s2')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 50);
+                  }}
+                  className="btn-touch bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200/80 rounded-xl text-xs"
+                >
+                  <ArrowLeft className="h-4 w-4" /> Indietro
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleNextSection('s3', 's4')}
+                  className="btn-touch bg-teal-650 hover:bg-teal-700 text-white rounded-xl text-xs font-bold"
+                >
+                  Continua <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* SECTION 4: CHIUSURA E PAGAMENTO */}
+        <div id="section-header-s4" className="glass-panel rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 transition">
+          {/* Header */}
+          <button
+            type="button"
+            onClick={() => toggleSection('s4')}
+            className="w-full flex items-center justify-between p-5 bg-slate-50/50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800 text-left hover:bg-slate-100/50 dark:hover:bg-slate-850/50 transition"
+          >
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-teal-600/10 text-teal-600 dark:text-teal-400">
+                <CreditCard className="h-5 w-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 uppercase tracking-wider">
+                  4. Chiusura e Ricevuta
+                </h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {formData.cost ? `Tariffa: ${formData.cost} € | ${formData.payment_method.toUpperCase()}` : 'Inserisci tariffa e chiudi'}
+                </p>
+              </div>
+            </div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-800 text-slate-450 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-350 bg-white dark:bg-slate-900">
+              <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${openSections.s4 ? 'rotate-180' : ''}`} />
+            </div>
+          </button>
+
+          {/* Content */}
+          {openSections.s4 && (
+            <div className="p-5 flex flex-col gap-4 animate-slide-in">
+              <FormField
+                label="Ricevuta Cartacea N."
+                id="f-receipt"
+                type="number"
+                value={formData.receipt_number}
+                onChange={(val) => setFormData(p => ({ ...p, receipt_number: val }))}
+                placeholder="Numero ricevuta blocco"
+              />
+
+              <FormField
+                label="Costo Servizio (€)"
+                id="f-cost"
+                type="number"
+                value={formData.cost}
+                onChange={(val) => setFormData(p => ({ ...p, cost: val }))}
+                placeholder="Es: 150.00"
+              />
+
+              <FormField
+                label="Metodo di Pagamento"
+                id="f-pay-method"
+                type="select"
+                value={formData.payment_method}
+                onChange={(val) => setFormData(p => ({ ...p, payment_method: val }))}
+                options={[
+                  { value: 'contanti', label: 'Contanti' },
+                  { value: 'pos', label: 'POS (Carta/Bancomat)' },
+                  { value: 'bonifico', label: 'Bonifico Bancario' },
+                  { value: 'buono', label: 'Buono Servizio / Convenzione' },
+                ]}
+              />
+
+              <div className="mt-2 p-4 border border-teal-500/20 bg-teal-500/[0.03] rounded-xl flex flex-col gap-2">
+                <span className="text-xs font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider">Riepilogo finale</span>
+                <div className="grid grid-cols-2 text-xs font-medium text-slate-500 dark:text-slate-400 gap-1.5">
+                  <span>Paziente: <b>{formData.patient_name || '-'}</b></span>
+                  <span>Mezzo: <b>{formData.vehicle_id ? vehicles.find(v => v.id === formData.vehicle_id)?.license_plate : '--'}</b></span>
+                  <span className="col-span-2">Percorso: <b>{formData.origin ? `${formData.origin.substring(0, 20)}...` : '--'} → {formData.destination ? `${formData.destination.substring(0, 20)}...` : '--'}</b></span>
+                  <span className="col-span-2 text-teal-700 dark:text-teal-400 font-bold mt-1 text-sm">
+                    Costo: {formData.cost || '0'} € | Pagamento: {formData.payment_method.toUpperCase()}
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex justify-between mt-4 gap-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setOpenSections(p => ({ ...p, s4: false, s3: true }));
+                    setTimeout(() => {
+                      document.getElementById('section-header-s3')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }, 50);
+                  }}
+                  className="btn-touch flex-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200/80 rounded-xl text-xs"
+                >
+                  <ArrowLeft className="h-4 w-4" /> Indietro
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="btn-touch flex-[1.5] bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl shadow-lg shadow-emerald-500/20 font-extrabold text-xs"
+                >
+                  {loading ? (
+                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-t-white border-white/20"></div>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4" /> Termina Trasporto
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
           )}
         </div>
 
