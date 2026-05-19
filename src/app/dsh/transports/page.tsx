@@ -14,7 +14,8 @@ import {
   XCircle,
   AlertCircle,
   Trash2,
-  ChevronDown
+  ChevronDown,
+  FileDown
 } from 'lucide-react';
 import { supabase } from '@/lib/supabaseClient';
 import Modal from '@/components/Modal';
@@ -69,6 +70,333 @@ export default function DshTransports() {
     cost: '150.00',
     notes: '',
   });
+
+  const downloadPDF = async (t: any) => {
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      // 1. Load logo image as base64
+      let logoBase64 = '';
+      try {
+        const res = await fetch('/logo.png');
+        const blob = await res.blob();
+        logoBase64 = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result as string);
+          reader.readAsDataURL(blob);
+        });
+      } catch (imgErr) {
+        console.warn('Failed to load logo image, continuing without it', imgErr);
+      }
+
+      // Colors
+      const primaryColor = [13, 148, 136]; // Teal #0D9488
+      const darkColor = [30, 41, 59]; // Slate #1E293B
+      const grayColor = [100, 116, 139]; // Gray #64748B
+      const lightBg = [248, 250, 252]; // Light gray #F8FAFC
+      const lightBorder = [226, 232, 240]; // Border #E2E8F0
+
+      // Helper for drawing cards
+      const drawCard = (x: number, y: number, w: number, h: number, title: string) => {
+        doc.setFillColor(lightBg[0], lightBg[1], lightBg[2]);
+        doc.setDrawColor(lightBorder[0], lightBorder[1], lightBorder[2]);
+        doc.roundedRect(x, y, w, h, 3, 3, 'FD');
+        
+        // Card title header
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8.5);
+        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        doc.text(title.toUpperCase(), x + 4, y + 6.5);
+        
+        // Horizontal divider under card header
+        doc.setDrawColor(203, 213, 225); // Slate 300
+        doc.line(x + 4, y + 9, x + w - 4, y + 9);
+      };
+
+      // Header Brand Layout
+      if (logoBase64) {
+        // Draw logo: aspect ratio fit in a 22x22mm box
+        doc.addImage(logoBase64, 'PNG', 15, 12, 22, 22);
+      }
+
+      // Company info
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(14);
+      doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+      doc.text('COOP G.M. Pubblica Assistenza', 42, 18);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+      doc.text('Brescia • Servizi Sanitari di Trasporto Secondario', 42, 23);
+      doc.text('Email: info@coopgm.it • Tel: +39 030 123456', 42, 27);
+
+      // Accent colored main horizontal bar
+      doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.rect(15, 38, 180, 1.5, 'F');
+
+      // Title
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(13);
+      doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+      doc.text('DETTAGLI TRASPORTO SANITARIO', 15, 47);
+
+      // Status Badge
+      const statusText = (t.status || 'PROGRAMMATO').toUpperCase();
+      doc.setFontSize(8);
+      doc.setFillColor(241, 245, 249); // light grey
+      doc.setDrawColor(203, 213, 225);
+      doc.roundedRect(150, 41, 45, 6, 1, 1, 'FD');
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.text(statusText, 172.5, 45, { align: 'center' });
+
+      // ID & Date
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+      doc.text(`ID TRASPORTO: ${t.id}`, 15, 52);
+      doc.text(`DATA EMISSIONE: ${new Date().toLocaleDateString('it-IT')}`, 15, 56);
+
+      // Layout coordinates
+      let currentY = 62;
+
+      // CARD 1: PAZIENTE & RICHIEDENTE (Left) & LOGISTICA (Right)
+      const colW = 86; // 86mm each card, leaves 8mm gap in-between (15 + 86 + 8 + 86 = 195)
+      const cardHeight = 65;
+      
+      // Draw Paziente & Richiedente
+      drawCard(15, currentY, colW, cardHeight, 'Paziente & Richiedente');
+      doc.setFontSize(8);
+      doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+      let itemY = currentY + 14;
+      
+      doc.text('NOME PAZIENTE:', 19, itemY);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+      doc.setFontSize(9.5);
+      doc.text(t.patient_name || '--', 19, itemY + 4);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+      itemY += 10;
+      doc.text('TELEFONO PAZIENTE:', 19, itemY);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+      doc.text(t.patient_phone || '--', 19, itemY + 4);
+      
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+      itemY += 10;
+      doc.text('INDIRIZZO ABITAZIONE:', 19, itemY);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+      doc.text(t.patient_address || '--', 19, itemY + 4);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+      itemY += 10;
+      doc.text('RICHIEDENTE:', 19, itemY);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+      const reqInfo = [t.requester_name, t.requester_phone].filter(Boolean).join(' - ');
+      doc.text(reqInfo || '--', 19, itemY + 4);
+
+      // Draw Logistica
+      drawCard(109, currentY, colW, cardHeight, 'Dettagli Corsa & Logistica');
+      doc.setFontSize(8);
+      itemY = currentY + 14;
+
+      const drawLogisticsRow = (label1: string, val1: string, label2: string, val2: string, yPos: number) => {
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+        doc.text(label1, 113, yPos);
+        doc.text(label2, 154, yPos);
+        
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+        doc.text(val1, 113, yPos + 4);
+        doc.text(val2, 154, yPos + 4);
+      };
+
+      drawLogisticsRow('DATA SERVIZIO:', t.date || '--', 'TIPOLOGIA:', (t.transport_type || 'Altro').toUpperCase(), itemY);
+      itemY += 10;
+      drawLogisticsRow('TIPO VIAGGIO:', (t.trip_type || 'Andata').toUpperCase(), 'METODO:', (t.transport_method || 'Barella').toUpperCase(), itemY);
+      itemY += 10;
+      
+      const elevatorStr = t.elevator ? 'SÌ (Ascensore)' : 'NO (A Piedi)';
+      const floorStr = t.floor !== undefined && t.floor !== null ? `Piano ${t.floor} (${elevatorStr})` : '--';
+      drawLogisticsRow('PIANO & SALITA:', floorStr, 'ACCOMPAGNATORE:', t.accompanied ? 'PRESENTE' : 'NON PRESENTE', itemY);
+      itemY += 10;
+
+      const oxygenStr = t.oxygen && t.oxygen !== 'No' ? `SÌ - ${t.oxygen}` : 'NO';
+      const weightStr = t.weight ? `${t.weight} kg` : '--';
+      drawLogisticsRow('PESO PAZIENTE:', weightStr, 'OSSIGENO TERAPIA:', oxygenStr, itemY);
+
+      currentY += cardHeight + 8;
+
+      // CARD 2: ITINERARIO, ORARI & CHILOMETRI (Full width)
+      const fullW = 180;
+      const card2H = 50;
+      drawCard(15, currentY, fullW, card2H, 'Itinerario, Orari & Chilometri');
+      
+      itemY = currentY + 14;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+      doc.text('LUOGO DI PARTENZA (DA):', 19, itemY);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+      doc.text(t.origin || '--', 19, itemY + 3.5);
+
+      itemY += 8;
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+      doc.text('LUOGO DI ARRIVO (A):', 19, itemY);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+      doc.text(t.destination || '--', 19, itemY + 3.5);
+
+      // Three Sub-columns at bottom of card 2
+      itemY += 10;
+      
+      const subColW = 55;
+      const drawSubBox = (xPos: number, title: string, lines: string[]) => {
+        doc.setFillColor(241, 245, 249);
+        doc.setDrawColor(226, 232, 240);
+        doc.roundedRect(xPos, itemY, subColW, 14, 1.5, 1.5, 'FD');
+        
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(7.5);
+        doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+        doc.text(title.toUpperCase(), xPos + 3, itemY + 4);
+        
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+        let lineY = itemY + 7.5;
+        lines.forEach(l => {
+          doc.text(l, xPos + 3, lineY);
+          lineY += 4;
+        });
+      };
+
+      const sTimeStr = t.start_time ? new Date(t.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--';
+      const eTimeStr = t.end_time ? new Date(t.end_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--';
+      const waitStr = Number(t.wait_hours) > 0 ? `Attesa: ${t.wait_hours} h` : '';
+      drawSubBox(19, 'Orari', [`Inizio: ${sTimeStr} | Fine: ${eTimeStr}`, waitStr].filter(Boolean));
+      
+      const kStart = t.km_start ?? 0;
+      const kEnd = t.km_end ?? 0;
+      const kTot = t.km_total ?? 0;
+      drawSubBox(78, 'Chilometri', [`Inizio: ${kStart} | Fine: ${kEnd}`, `Percorsi: ${kTot} Km`]);
+
+      const plateStr = t.vehicles?.license_plate || '--';
+      let crewNames = 'Non assegnato';
+      if (t.transport_crew && t.transport_crew.length > 0) {
+        crewNames = t.transport_crew.map((c: any) => c.user ? c.user.name.split(' ')[0] : (c.custom_name || '').split(' ')[0]).join(' + ');
+      }
+      drawSubBox(137, 'Mezzo & Equipaggio', [`Mezzo: ${plateStr}`, `Equipaggio: ${crewNames}`]);
+
+      currentY += card2H + 8;
+
+      // CARD 3: TARIFFARIO & NOTE (Full width)
+      const card3H = 50;
+      drawCard(15, currentY, fullW, card3H, 'Tariffazione & Note');
+
+      itemY = currentY + 14;
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+      
+      doc.text('CLIENTE PAGANTE:', 19, itemY);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+      doc.text(t.client_name || t.patient_name || '--', 19, itemY + 4);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+      doc.text('TELEFONO CLIENTE:', 78, itemY);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+      doc.text(t.client_phone || t.patient_phone || '--', 78, itemY + 4);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+      doc.text('EMAIL FATTURA:', 137, itemY);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+      doc.text(t.client_email || '--', 137, itemY + 4);
+
+      // Accent Highlight Box for Pricing
+      itemY += 10;
+      doc.setFillColor(235, 251, 250); // Teal 50 bg
+      doc.setDrawColor(20, 184, 166, 0.4); // Teal 500 boundary
+      doc.roundedRect(19, itemY, 80, 18, 2, 2, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
+      doc.text('IMPORTO DEL SERVIZIO', 23, itemY + 6);
+      
+      doc.setFontSize(14);
+      doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+      const priceStr = t.cost ? `${Number(t.cost).toFixed(2)} €` : 'DA DEFINIRE';
+      doc.text(priceStr, 23, itemY + 13);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+      doc.text('METODO DI PAGAMENTO:', 110, itemY + 6);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+      doc.text((t.payment_method || 'Contanti').toUpperCase(), 110, itemY + 12);
+
+      currentY += card3H + 8;
+
+      // Note & Condizioni if exists
+      if (t.conditions || t.notes) {
+        // Draw custom card for Note
+        const notesH = 26;
+        drawCard(15, currentY, fullW, notesH, 'Note Cliniche & Logistiche');
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+        
+        let noteLines = [];
+        if (t.conditions) noteLines.push(`Stato/Condizioni: "${t.conditions}"`);
+        if (t.notes) noteLines.push(`Note Equipaggio: ${t.notes}`);
+        
+        let textY = currentY + 14;
+        noteLines.forEach(l => {
+          doc.text(l, 19, textY);
+          textY += 5;
+        });
+
+        currentY += notesH + 8;
+      }
+
+      // Footer signature / Stamp
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
+      doc.text('COOP G.M. Pubblica Assistenza - Società Cooperativa Sociale', 105, 275, { align: 'center' });
+      doc.text('Certificato conforme ai sensi delle vigenti normative di trasporto sanitario secondario.', 105, 279, { align: 'center' });
+
+      // Save document
+      const patientLastName = (t.patient_name || 'Trasporto').split(' ').pop();
+      doc.save(`Trasporto_${patientLastName || 'Servizio'}_${t.date || 'Data'}.pdf`);
+    } catch (err) {
+      console.error('Error generating PDF:', err);
+      alert('Errore durante la generazione del PDF.');
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -578,17 +906,26 @@ export default function DshTransports() {
         isOpen={!!selectedTransport}
         onClose={() => setSelectedTransport(null)}
         title="Dettagli Trasporto Sanitario"
+        size="lg"
         footer={
-          <button
-            onClick={() => setSelectedTransport(null)}
-            className="px-5 py-2 text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg transition"
-          >
-            Chiudi
-          </button>
+          <div className="flex w-full items-center justify-between gap-3">
+            <button
+              onClick={() => downloadPDF(selectedTransport)}
+              className="px-4 py-2 text-xs font-bold text-white bg-teal-600 hover:bg-teal-700 rounded-lg flex items-center gap-1.5 shadow-md shadow-teal-500/10 active:scale-95 transition cursor-pointer"
+            >
+              <FileDown className="h-4 w-4" /> Scarica PDF
+            </button>
+            <button
+              onClick={() => setSelectedTransport(null)}
+              className="px-5 py-2 text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg transition cursor-pointer"
+            >
+              Chiudi
+            </button>
+          </div>
         }
       >
         {selectedTransport && (
-          <div className="flex flex-col gap-6 max-h-[70vh] overflow-y-auto pr-1 no-scrollbar text-left text-slate-700 dark:text-slate-200">
+          <div className="flex flex-col gap-6 text-left text-slate-700 dark:text-slate-200">
             
             {/* Status & ID Header */}
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-850 pb-4">

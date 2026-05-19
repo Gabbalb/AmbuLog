@@ -9,9 +9,10 @@ interface ModalProps {
   title: string;
   children: React.ReactNode;
   footer?: React.ReactNode;
+  size?: 'md' | 'lg' | 'xl';
 }
 
-export default function Modal({ isOpen, onClose, title, children, footer }: ModalProps) {
+export default function Modal({ isOpen, onClose, title, children, footer, size = 'md' }: ModalProps) {
   // Prevent scrolling behind the modal when open
   useEffect(() => {
     if (isOpen) {
@@ -35,13 +36,19 @@ export default function Modal({ isOpen, onClose, title, children, footer }: Moda
 
   if (!isOpen) return null;
 
+  const sizeClasses = {
+    md: 'sm:max-w-lg',
+    lg: 'sm:max-w-3xl',
+    xl: 'sm:max-w-5xl'
+  }[size];
+
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/60 backdrop-blur-sm transition-opacity p-0 sm:items-center sm:p-4">
       {/* Backdrop tap to close */}
       <div className="absolute inset-0" onClick={onClose}></div>
 
       {/* Modal Card */}
-      <div className="relative w-full max-h-[92vh] flex flex-col rounded-t-2xl border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-2xl animate-slide-in sm:max-w-lg sm:rounded-2xl sm:border">
+      <div className={`relative w-full max-h-[92vh] flex flex-col rounded-t-2xl border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 shadow-2xl animate-slide-in sm:rounded-2xl sm:border ${sizeClasses}`}>
         
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 px-5 py-4">
@@ -71,3 +78,4 @@ export default function Modal({ isOpen, onClose, title, children, footer }: Moda
     </div>
   );
 }
+

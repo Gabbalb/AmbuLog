@@ -66,7 +66,7 @@ export default function FormField({
         return (
           <textarea
             id={id}
-            value={value || ''}
+            value={value !== undefined && value !== null ? value : ''}
             onChange={(e) => onChange(e.target.value)}
             placeholder={placeholder}
             required={required}
@@ -78,7 +78,7 @@ export default function FormField({
           <div className="relative">
             <select
               id={id}
-              value={value || ''}
+              value={value !== undefined && value !== null ? value : ''}
               onChange={(e) => onChange(e.target.value)}
               required={required}
               className="input-premium appearance-none pr-10"
@@ -117,7 +117,7 @@ export default function FormField({
             <input
               id={id}
               type={type}
-              value={value || ''}
+              value={value !== undefined && value !== null ? value : ''}
               onChange={(e) => handleInputChange(e.target.value)}
               onFocus={() => {
                 if (suggestions.length > 0 && String(value).length > 1) {

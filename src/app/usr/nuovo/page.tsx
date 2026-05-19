@@ -580,6 +580,7 @@ function TransportFormContent() {
                 label="Mezzo Utilizzato"
                 id="f-vehicle"
                 type="select"
+                placeholder="-- Seleziona Mezzo --"
                 value={formData.vehicle_id}
                 onChange={(val) => setFormData(p => ({ ...p, vehicle_id: val }))}
                 options={vOptions}
