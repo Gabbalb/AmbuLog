@@ -37,6 +37,11 @@ const FREQUENT_PLACES = [
   'Clinica Madonnina, Milano',
 ];
 
+const getLocalTimeStr = () => {
+  const now = new Date();
+  return now.toTimeString().substring(0, 5); // "HH:MM"
+};
+
 function TransportFormContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -52,6 +57,7 @@ function TransportFormContent() {
     s4: false,
   });
   const [isPatientLogisticsOpen, setIsPatientLogisticsOpen] = useState(false);
+  const [isRequesterOpen, setIsRequesterOpen] = useState(false);
   const [loading, setLoading] = useState(false);
 
   // Form State
@@ -70,7 +76,7 @@ function TransportFormContent() {
     // Section 2: Percorso & Orari
     origin: '',
     destination: '',
-    start_time: '',
+    start_time: getLocalTimeStr(),
     end_time: '',
     wait_hours: 0,
     km_start: 0,
@@ -206,7 +212,7 @@ function TransportFormContent() {
           trip_type: data.trip_type || 'andata',
           origin: data.origin || '',
           destination: data.destination || '',
-          start_time: sTime,
+          start_time: sTime || getLocalTimeStr(),
           end_time: eTime,
           wait_hours: Number(data.wait_hours) || 0,
           km_start: Number(data.km_start) || prev.km_start,
@@ -239,6 +245,29 @@ function TransportFormContent() {
     loadSelectedTransport();
   }, [transportId]);
 
+  // Dynamically load starting kilometers when the vehicle ID changes
+  useEffect(() => {
+    if (!formData.vehicle_id) return;
+    const fetchVehicleKm = async () => {
+      const { data } = await supabase
+        .from('vehicles')
+        .select('last_km')
+        .eq('id', formData.vehicle_id)
+        .single();
+      if (data) {
+        setFormData(prev => ({ ...prev, km_start: data.last_km }));
+      }
+    };
+    fetchVehicleKm();
+  }, [formData.vehicle_id]);
+
+  // Pre-fill end_time with current time when Section 4 (Chiusura) is opened, if it hasn't been set yet
+  useEffect(() => {
+    if (openSections.s4 && !formData.end_time) {
+      setFormData(prev => ({ ...prev, end_time: getLocalTimeStr() }));
+    }
+  }, [openSections.s4, formData.end_time]);
+
   const toggleSection = (section: 's1' | 's2' | 's3' | 's4') => {
     setOpenSections(prev => ({
       ...prev,
@@ -247,32 +276,6 @@ function TransportFormContent() {
   };
 
   const handleNextSection = (current: 's1' | 's2' | 's3', next: 's2' | 's3' | 's4') => {
-    if (current === 's1') {
-      if (!formData.date || !formData.vehicle_id || !formData.driver_name || !formData.ce_name) {
-        alert('I campi di data, mezzo e membri dell\'equipaggio (Autista e Capo Equipaggio) sono obbligatori!');
-        return;
-      }
-    }
-
-    if (current === 's2') {
-      if (!formData.origin || !formData.destination) {
-        alert('Luogo di Partenza e Luogo di Arrivo sono obbligatori!');
-        return;
-      }
-      if (!formData.start_time || !formData.end_time) {
-        alert('Ora Inizio e Ora Fine sono obbligatorie!');
-        return;
-      }
-      if (!formData.km_end || Number(formData.km_end) <= 0) {
-        alert('I Chilometri Finali sono obbligatori e devono essere maggiori di 0!');
-        return;
-      }
-      if (formData.km_end > 0 && formData.km_end < formData.km_start) {
-        alert('I Chilometri Finali non possono essere inferiori a quelli Iniziali!');
-        return;
-      }
-    }
-
     setOpenSections(prev => ({
       ...prev,
       [current]: false,
@@ -290,40 +293,55 @@ function TransportFormContent() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Final validations before submitting
-    if (!formData.date || !formData.vehicle_id || !formData.driver_name || !formData.ce_name) {
-      alert('I campi dell\'equipaggio (Data, Mezzo, Autista, Capo Equipaggio) sono obbligatori!');
+    // Final validations before submitting (Nomi, Ore, Kilometri)
+    if (!formData.driver_name?.trim()) {
+      alert("Il nome dell'Autista è obbligatorio!");
       setOpenSections(p => ({ ...p, s1: true }));
       return;
     }
-    if (!formData.origin || !formData.destination) {
-      alert('Luogo di Partenza e Luogo di Arrivo sono obbligatori!');
+    if (!formData.ce_name?.trim()) {
+      alert("Il nome del Capo Equipaggio è obbligatorio!");
+      setOpenSections(p => ({ ...p, s1: true }));
+      return;
+    }
+    if (!formData.patient_name?.trim()) {
+      alert("Il nome del Paziente è obbligatorio!");
+      setOpenSections(p => ({ ...p, s1: true }));
+      return;
+    }
+
+    if (!formData.start_time) {
+      alert("L'Ora Inizio è obbligatoria!");
       setOpenSections(p => ({ ...p, s2: true }));
       return;
     }
-    if (!formData.start_time || !formData.end_time) {
-      alert('Ora Inizio e Ora Fine sono obbligatorie!');
+    if (!formData.end_time) {
+      alert("L'Ora Fine è obbligatoria!");
+      setOpenSections(p => ({ ...p, s4: true }));
+      return;
+    }
+
+    const kStart = Number(formData.km_start);
+    const kEnd = Number(formData.km_end);
+    if (isNaN(kStart) || kStart < 0) {
+      alert("I chilometri iniziali devono essere specificati!");
       setOpenSections(p => ({ ...p, s2: true }));
       return;
     }
-    if (!formData.km_end || Number(formData.km_end) <= 0) {
-      alert('I Chilometri Finali sono obbligatori e devono essere maggiori di 0!');
+    if (isNaN(kEnd) || kEnd <= 0) {
+      alert("I chilometri finali sono obbligatori e devono essere maggiori di 0!");
       setOpenSections(p => ({ ...p, s2: true }));
       return;
     }
-    if (formData.km_end > 0 && formData.km_end < formData.km_start) {
-      alert('I Chilometri Finali non possono essere inferiori a quelli Iniziali!');
+    if (kEnd < kStart) {
+      alert("I chilometri finali non possono essere inferiori a quelli iniziali!");
       setOpenSections(p => ({ ...p, s2: true }));
       return;
     }
-    if (formData.is_client_different && !formData.client_name) {
-      alert('Inserisci il Nome del Cliente pagante!');
-      setOpenSections(p => ({ ...p, s3: true }));
-      return;
-    }
-    if (formData.is_client_different && formData.client_email && !formData.client_email.includes('@')) {
-      alert('Inserisci un indirizzo Email valido per l\'invio della fattura!');
-      setOpenSections(p => ({ ...p, s3: true }));
+
+    if (formData.client_email && !formData.client_email.includes('@')) {
+      alert("Inserisci un indirizzo Email valido!");
+      setOpenSections(p => ({ ...p, s4: true }));
       return;
     }
 
@@ -357,8 +375,8 @@ function TransportFormContent() {
         end_time: endTimestamp,
         wait_hours: Number(formData.wait_hours) || 0,
         vehicle_id: formData.vehicle_id || null,
-        km_start: Number(formData.km_start) || 0,
-        km_end: Number(formData.km_end) || 0,
+        km_start: kStart,
+        km_end: kEnd,
         km_total: Number(formData.km_total) || 0,
         patient_name: cleanPatientName,
         patient_address: formData.patient_address || null,
@@ -372,9 +390,9 @@ function TransportFormContent() {
         conditions: formData.conditions || null,
         client_name: formData.is_client_different ? (formData.client_name || cleanPatientName) : cleanPatientName,
         client_phone: formData.is_client_different ? formData.client_phone : null,
-        client_email: formData.is_client_different ? formData.client_email : null,
+        client_email: (formData.is_client_different || formData.payment_method === 'bonifico') ? formData.client_email : null,
         notes: formData.notes || null,
-        receipt_number: formData.receipt_number || null,
+        receipt_number: null, // Removed receipt_number
         cost: formData.cost ? Number(formData.cost) : 0,
         payment_method: formData.payment_method as any,
       };
@@ -424,6 +442,14 @@ function TransportFormContent() {
         }
 
         await supabase.from('transport_crew').insert(crewInsertions);
+      }
+
+      // 4. Overwrite vehicle last_km in database with final kilometers of transport
+      if (formData.vehicle_id && kEnd > 0) {
+        await supabase
+          .from('vehicles')
+          .update({ last_km: kEnd })
+          .eq('id', formData.vehicle_id);
       }
 
       alert('Trasporto completato e archiviato con successo!');
@@ -548,7 +574,6 @@ function TransportFormContent() {
                 type="date"
                 value={formData.date}
                 onChange={(val) => setFormData(p => ({ ...p, date: val }))}
-                required
               />
 
               <FormField
@@ -558,7 +583,6 @@ function TransportFormContent() {
                 value={formData.vehicle_id}
                 onChange={(val) => setFormData(p => ({ ...p, vehicle_id: val }))}
                 options={vOptions}
-                required
               />
 
               <FormField
@@ -568,7 +592,6 @@ function TransportFormContent() {
                 value={formData.driver_name}
                 onChange={(val) => setFormData(p => ({ ...p, driver_name: val }))}
                 suggestions={users.map(u => u.name)}
-                required
               />
 
               <FormField
@@ -578,7 +601,6 @@ function TransportFormContent() {
                 value={formData.ce_name}
                 onChange={(val) => setFormData(p => ({ ...p, ce_name: val }))}
                 suggestions={users.map(u => u.name)}
-                required
               />
 
               <FormField
@@ -592,23 +614,49 @@ function TransportFormContent() {
               />
 
               <h3 className="text-sm font-bold border-b pb-2 mt-4 text-slate-800 dark:text-slate-100 uppercase tracking-wider">Richiedente & Paziente</h3>
-              
-              <FormField
-                label="Nome Richiedente"
-                id="f-req-name"
-                value={formData.requester_name}
-                onChange={(val) => setFormData(p => ({ ...p, requester_name: val }))}
-                placeholder="Es: Ospedale Niguarda"
-              />
 
-              <FormField
-                label="Telefono Richiedente"
-                id="f-req-phone"
-                type="tel"
-                value={formData.requester_phone}
-                onChange={(val) => setFormData(p => ({ ...p, requester_phone: val }))}
-                placeholder="Numero contatto"
-              />
+              {/* Collapsible Requester Sub-section */}
+              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden mt-2">
+                <button
+                  type="button"
+                  onClick={() => setIsRequesterOpen(!isRequesterOpen)}
+                  className="w-full flex items-center justify-between p-4 bg-slate-100/40 dark:bg-slate-900/40 text-left hover:bg-slate-100/60 dark:hover:bg-slate-850/40 transition"
+                >
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4.5 w-4.5 text-teal-600 dark:text-teal-400" />
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">
+                      Dati Richiedente
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] text-slate-400 font-semibold">
+                      {isRequesterOpen ? 'Nascondi' : 'Espandi'}
+                    </span>
+                    <ChevronDown className={`h-3.5 w-3.5 text-slate-400 transition-transform duration-200 ${isRequesterOpen ? 'rotate-180' : ''}`} />
+                  </div>
+                </button>
+
+                {isRequesterOpen && (
+                  <div className="p-4 bg-slate-100/10 dark:bg-slate-900/10 border-t border-slate-200 dark:border-slate-800 flex flex-col gap-4 animate-slide-in">
+                    <FormField
+                      label="Nome Richiedente"
+                      id="f-req-name"
+                      value={formData.requester_name}
+                      onChange={(val) => setFormData(p => ({ ...p, requester_name: val }))}
+                      placeholder="Es: Ospedale Niguarda"
+                    />
+
+                    <FormField
+                      label="Telefono Richiedente"
+                      id="f-req-phone"
+                      type="tel"
+                      value={formData.requester_phone}
+                      onChange={(val) => setFormData(p => ({ ...p, requester_phone: val }))}
+                      placeholder="Numero contatto"
+                    />
+                  </div>
+                )}
+              </div>
 
               <FormField
                 label="Paziente (Cognome e Nome)"
@@ -694,7 +742,6 @@ function TransportFormContent() {
                 onChange={(val) => setFormData(p => ({ ...p, origin: val }))}
                 suggestions={FREQUENT_PLACES}
                 placeholder="Città, Via o Ospedale"
-                required
               />
 
               <FormField
@@ -704,7 +751,6 @@ function TransportFormContent() {
                 onChange={(val) => setFormData(p => ({ ...p, destination: val }))}
                 suggestions={FREQUENT_PLACES}
                 placeholder="Città, Via o Ospedale"
-                required
               />
 
               <h3 className="text-sm font-bold border-b pb-2 mt-4 text-slate-800 dark:text-slate-100 uppercase tracking-wider">Orari & Odometer</h3>
@@ -715,16 +761,6 @@ function TransportFormContent() {
                 type="time"
                 value={formData.start_time}
                 onChange={(val) => setFormData(p => ({ ...p, start_time: val }))}
-                required
-              />
-
-              <FormField
-                label="Ora Fine"
-                id="f-end-time"
-                type="time"
-                value={formData.end_time}
-                onChange={(val) => setFormData(p => ({ ...p, end_time: val }))}
-                required
               />
 
               <FormField
@@ -750,7 +786,6 @@ function TransportFormContent() {
                   type="number"
                   value={formData.km_end}
                   onChange={(val) => setFormData(p => ({ ...p, km_end: val }))}
-                  required
                 />
                 <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-3">
                   <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Chilometri Totali</span>
@@ -1039,14 +1074,31 @@ function TransportFormContent() {
           {/* Content */}
           {openSections.s4 && (
             <div className="p-5 flex flex-col gap-4 animate-slide-in">
-              <FormField
-                label="Ricevuta Cartacea N."
-                id="f-receipt"
-                type="number"
-                value={formData.receipt_number}
-                onChange={(val) => setFormData(p => ({ ...p, receipt_number: val }))}
-                placeholder="Numero ricevuta blocco"
-              />
+              {/* Premium End Time Confirmation Box */}
+              <div className="bg-slate-100/50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex flex-col gap-3">
+                <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Ora Fine Trasporto</span>
+                <div className="flex items-center gap-3">
+                  <div className="flex-1">
+                    <FormField
+                      label="Ora di fine"
+                      id="f-end-time"
+                      type="time"
+                      value={formData.end_time}
+                      onChange={(val) => setFormData(p => ({ ...p, end_time: val }))}
+                    />
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setFormData(p => ({ ...p, end_time: getLocalTimeStr() }))}
+                    className="mt-6 px-3.5 py-3 bg-teal-600/10 hover:bg-teal-600/20 text-teal-600 dark:text-teal-400 text-xs font-bold rounded-xl transition active:scale-95 border border-teal-500/20"
+                  >
+                    Ora Attuale
+                  </button>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-normal">
+                  Conferma l'orario attuale al momento della chiusura o modificalo se necessario prima di salvare definitivamente.
+                </p>
+              </div>
 
               <FormField
                 label="Costo Servizio (€)"
@@ -1070,6 +1122,23 @@ function TransportFormContent() {
                   { value: 'buono', label: 'Buono Servizio / Convenzione' },
                 ]}
               />
+
+              {/* Conditional Email Field for Bank Transfer (Bonifico) */}
+              {formData.payment_method === 'bonifico' && (
+                <div className="animate-slide-in p-4 border border-teal-500/20 bg-teal-500/[0.02] rounded-xl flex flex-col gap-3">
+                  <FormField
+                    label="Email per Ricevuta Bonifico / Fattura"
+                    id="f-client-email"
+                    type="email"
+                    value={formData.client_email}
+                    onChange={(val) => setFormData(p => ({ ...p, client_email: val }))}
+                    placeholder="email@dominio.it"
+                  />
+                  <p className="text-[11px] text-slate-400 leading-normal">
+                    Fornisci l'indirizzo email del cliente a cui inviare la fattura o i dati per il pagamento.
+                  </p>
+                </div>
+              )}
 
               <div className="mt-2 p-4 border border-teal-500/20 bg-teal-500/[0.03] rounded-xl flex flex-col gap-2">
                 <span className="text-xs font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider">Riepilogo finale</span>
