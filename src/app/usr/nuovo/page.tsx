@@ -184,13 +184,14 @@ function TransportFormContent() {
           });
         }
 
-        // Set start time with current hour if this transport has just been activated
-        let sTime = data.start_time ? new Date(data.start_time).toISOString().substring(11, 16) : '';
-        if (data.status === 'attivo' && !sTime) {
-          sTime = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+        let sTime = '';
+        let eTime = '';
+        if (data.start_time) {
+          sTime = new Date(data.start_time).toTimeString().substring(0, 5);
         }
-
-        const eTime = data.end_time ? new Date(data.end_time).toISOString().substring(11, 16) : '';
+        if (data.end_time) {
+          eTime = new Date(data.end_time).toTimeString().substring(0, 5);
+        }
 
         setFormData(prev => ({
           ...prev,
@@ -248,27 +249,26 @@ function TransportFormContent() {
   const handleNextSection = (current: 's1' | 's2' | 's3', next: 's2' | 's3' | 's4') => {
     if (current === 's1') {
       if (!formData.date || !formData.vehicle_id || !formData.driver_name || !formData.ce_name) {
-        alert('I campi dell\'equipaggio (Data, Mezzo, Autista, Capo Equipaggio) sono obbligatori!');
+        alert('I campi di data, mezzo e membri dell\'equipaggio (Autista e Capo Equipaggio) sono obbligatori!');
         return;
       }
     }
+
     if (current === 's2') {
       if (!formData.origin || !formData.destination) {
         alert('Luogo di Partenza e Luogo di Arrivo sono obbligatori!');
         return;
       }
+      if (!formData.start_time || !formData.end_time) {
+        alert('Ora Inizio e Ora Fine sono obbligatorie!');
+        return;
+      }
+      if (!formData.km_end || Number(formData.km_end) <= 0) {
+        alert('I Chilometri Finali sono obbligatori e devono essere maggiori di 0!');
+        return;
+      }
       if (formData.km_end > 0 && formData.km_end < formData.km_start) {
         alert('I Chilometri Finali non possono essere inferiori a quelli Iniziali!');
-        return;
-      }
-    }
-    if (current === 's3') {
-      if (formData.is_client_different && !formData.client_name) {
-        alert('Inserisci il Nome del Cliente pagante!');
-        return;
-      }
-      if (formData.is_client_different && formData.client_email && !formData.client_email.includes('@')) {
-        alert('Inserisci un indirizzo Email valido per l\'invio della fattura!');
         return;
       }
     }
@@ -301,6 +301,16 @@ function TransportFormContent() {
       setOpenSections(p => ({ ...p, s2: true }));
       return;
     }
+    if (!formData.start_time || !formData.end_time) {
+      alert('Ora Inizio e Ora Fine sono obbligatorie!');
+      setOpenSections(p => ({ ...p, s2: true }));
+      return;
+    }
+    if (!formData.km_end || Number(formData.km_end) <= 0) {
+      alert('I Chilometri Finali sono obbligatori e devono essere maggiori di 0!');
+      setOpenSections(p => ({ ...p, s2: true }));
+      return;
+    }
     if (formData.km_end > 0 && formData.km_end < formData.km_start) {
       alert('I Chilometri Finali non possono essere inferiori a quelli Iniziali!');
       setOpenSections(p => ({ ...p, s2: true }));
@@ -330,15 +340,19 @@ function TransportFormContent() {
         endTimestamp = new Date(`${formData.date}T${formData.end_time}:00`).toISOString();
       }
 
+      const cleanPatientName = formData.patient_name.trim() || '-';
+      const cleanOrigin = formData.origin.trim() || '-';
+      const cleanDestination = formData.destination.trim() || '-';
+
       const dbPayload = {
-        status: transportId ? 'completato' as const : 'completato' as const, // Save directly as completed from mobile
+        status: 'completato' as const, // Save directly as completed from mobile
         date: formData.date,
         requester_name: formData.requester_name || null,
         requester_phone: formData.requester_phone || null,
         transport_type: formData.transport_type as any,
         trip_type: formData.trip_type as any,
-        origin: formData.origin,
-        destination: formData.destination,
+        origin: cleanOrigin,
+        destination: cleanDestination,
         start_time: startTimestamp,
         end_time: endTimestamp,
         wait_hours: Number(formData.wait_hours) || 0,
@@ -346,7 +360,7 @@ function TransportFormContent() {
         km_start: Number(formData.km_start) || 0,
         km_end: Number(formData.km_end) || 0,
         km_total: Number(formData.km_total) || 0,
-        patient_name: formData.patient_name || '-',
+        patient_name: cleanPatientName,
         patient_address: formData.patient_address || null,
         patient_phone: formData.patient_phone || null,
         transport_method: formData.transport_method as any,
@@ -355,12 +369,12 @@ function TransportFormContent() {
         accompanied: formData.accompanied,
         weight: formData.weight ? Number(formData.weight) : null,
         oxygen: formData.oxygen ? (formData.oxygen_qty || 'Sì') : 'No',
-        conditions: formData.conditions,
-        client_name: formData.is_client_different ? (formData.client_name || '-') : (formData.patient_name || '-'),
-        client_phone: formData.is_client_different ? formData.client_phone : formData.patient_phone,
-        client_email: formData.client_email,
-        notes: formData.notes,
-        receipt_number: formData.receipt_number,
+        conditions: formData.conditions || null,
+        client_name: formData.is_client_different ? (formData.client_name || cleanPatientName) : cleanPatientName,
+        client_phone: formData.is_client_different ? formData.client_phone : null,
+        client_email: formData.is_client_different ? formData.client_email : null,
+        notes: formData.notes || null,
+        receipt_number: formData.receipt_number || null,
         cost: formData.cost ? Number(formData.cost) : 0,
         payment_method: formData.payment_method as any,
       };
@@ -423,17 +437,20 @@ function TransportFormContent() {
   };
 
   const getProgressPercentage = () => {
-    let fields = 0;
-    let total = 8;
-    if (formData.date) fields++;
-    if (formData.vehicle_id) fields++;
-    if (formData.driver_name) fields++;
-    if (formData.ce_name) fields++;
-    if (formData.origin) fields++;
-    if (formData.destination) fields++;
-    if (formData.patient_name) fields++;
-    if (formData.cost || formData.receipt_number) fields++;
-    return Math.round((fields / total) * 100);
+    // 9 Key fields for complete compilation status
+    const keyFields = [
+      formData.date,
+      formData.vehicle_id,
+      formData.driver_name,
+      formData.ce_name,
+      formData.origin,
+      formData.destination,
+      formData.start_time,
+      formData.end_time,
+      formData.km_end ? 'filled' : '',
+    ];
+    const filled = keyFields.filter(Boolean).length;
+    return Math.round((filled / keyFields.length) * 100);
   };
 
   if (loading && !formData.vehicle_id) {
@@ -446,7 +463,6 @@ function TransportFormContent() {
   }
 
   const vOptions = vehicles.map(v => ({ value: v.id, label: `${v.license_plate} - ${v.type}` }));
-  const uOptions = users.map(u => ({ value: u.name, label: u.name }));
 
   return (
     <div className="flex flex-col gap-6">
@@ -545,26 +561,25 @@ function TransportFormContent() {
                 required
               />
 
-              <div className="grid grid-cols-2 gap-3">
-                <FormField
-                  label="Autista"
-                  id="f-driver"
-                  type="text"
-                  value={formData.driver_name}
-                  onChange={(val) => setFormData(p => ({ ...p, driver_name: val }))}
-                  suggestions={users.map(u => u.name)}
-                  required
-                />
-                <FormField
-                  label="Capo Equipaggio"
-                  id="f-ce"
-                  type="text"
-                  value={formData.ce_name}
-                  onChange={(val) => setFormData(p => ({ ...p, ce_name: val }))}
-                  suggestions={users.map(u => u.name)}
-                  required
-                />
-              </div>
+              <FormField
+                label="Autista"
+                id="f-driver"
+                type="text"
+                value={formData.driver_name}
+                onChange={(val) => setFormData(p => ({ ...p, driver_name: val }))}
+                suggestions={users.map(u => u.name)}
+                required
+              />
+
+              <FormField
+                label="Capo Equipaggio"
+                id="f-ce"
+                type="text"
+                value={formData.ce_name}
+                onChange={(val) => setFormData(p => ({ ...p, ce_name: val }))}
+                suggestions={users.map(u => u.name)}
+                required
+              />
 
               <FormField
                 label="Terzo Soccorritore"
@@ -578,23 +593,22 @@ function TransportFormContent() {
 
               <h3 className="text-sm font-bold border-b pb-2 mt-4 text-slate-800 dark:text-slate-100 uppercase tracking-wider">Richiedente & Paziente</h3>
               
-              <div className="grid grid-cols-2 gap-3">
-                <FormField
-                  label="Nome Richiedente"
-                  id="f-req-name"
-                  value={formData.requester_name}
-                  onChange={(val) => setFormData(p => ({ ...p, requester_name: val }))}
-                  placeholder="Es: Ospedale Niguarda"
-                />
-                <FormField
-                  label="Telefono Richiedente"
-                  id="f-req-phone"
-                  type="tel"
-                  value={formData.requester_phone}
-                  onChange={(val) => setFormData(p => ({ ...p, requester_phone: val }))}
-                  placeholder="Numero contatto"
-                />
-              </div>
+              <FormField
+                label="Nome Richiedente"
+                id="f-req-name"
+                value={formData.requester_name}
+                onChange={(val) => setFormData(p => ({ ...p, requester_name: val }))}
+                placeholder="Es: Ospedale Niguarda"
+              />
+
+              <FormField
+                label="Telefono Richiedente"
+                id="f-req-phone"
+                type="tel"
+                value={formData.requester_phone}
+                onChange={(val) => setFormData(p => ({ ...p, requester_phone: val }))}
+                placeholder="Numero contatto"
+              />
 
               <FormField
                 label="Paziente (Cognome e Nome)"
@@ -604,33 +618,32 @@ function TransportFormContent() {
                 placeholder="Cognome Nome"
               />
 
-              <div className="grid grid-cols-2 gap-4 mt-2">
-                <FormField
-                  label="Tipologia Trasporto"
-                  id="f-trans-type"
-                  type="select"
-                  value={formData.transport_type}
-                  onChange={(val) => setFormData(p => ({ ...p, transport_type: val }))}
-                  options={[
-                    { value: 'dimissione', label: 'Dimissione' },
-                    { value: 'trasferimento', label: 'Trasferimento' },
-                    { value: 'visita', label: 'Visita' },
-                    { value: 'altro', label: 'Altro' },
-                  ]}
-                />
-                <FormField
-                  label="Tipo Servizio"
-                  id="f-trip-type"
-                  type="select"
-                  value={formData.trip_type}
-                  onChange={(val) => setFormData(p => ({ ...p, trip_type: val }))}
-                  options={[
-                    { value: 'andata', label: 'Andata' },
-                    { value: 'ritorno', label: 'Ritorno' },
-                    { value: 'a/r', label: 'Andata / Ritorno' },
-                  ]}
-                />
-              </div>
+              <FormField
+                label="Tipologia Trasporto"
+                id="f-trans-type"
+                type="select"
+                value={formData.transport_type}
+                onChange={(val) => setFormData(p => ({ ...p, transport_type: val }))}
+                options={[
+                  { value: 'dimissione', label: 'Dimissione' },
+                  { value: 'trasferimento', label: 'Trasferimento' },
+                  { value: 'visita', label: 'Visita' },
+                  { value: 'altro', label: 'Altro' },
+                ]}
+              />
+
+              <FormField
+                label="Tipo Servizio"
+                id="f-trip-type"
+                type="select"
+                value={formData.trip_type}
+                onChange={(val) => setFormData(p => ({ ...p, trip_type: val }))}
+                options={[
+                  { value: 'andata', label: 'Andata' },
+                  { value: 'ritorno', label: 'Ritorno' },
+                  { value: 'a/r', label: 'Andata / Ritorno' },
+                ]}
+              />
 
               <div className="flex justify-end mt-4">
                 <button
@@ -696,22 +709,23 @@ function TransportFormContent() {
 
               <h3 className="text-sm font-bold border-b pb-2 mt-4 text-slate-800 dark:text-slate-100 uppercase tracking-wider">Orari & Odometer</h3>
 
-              <div className="grid grid-cols-2 gap-3">
-                <FormField
-                  label="Ora Inizio"
-                  id="f-start-time"
-                  type="time"
-                  value={formData.start_time}
-                  onChange={(val) => setFormData(p => ({ ...p, start_time: val }))}
-                />
-                <FormField
-                  label="Ora Fine"
-                  id="f-end-time"
-                  type="time"
-                  value={formData.end_time}
-                  onChange={(val) => setFormData(p => ({ ...p, end_time: val }))}
-                />
-              </div>
+              <FormField
+                label="Ora Inizio"
+                id="f-start-time"
+                type="time"
+                value={formData.start_time}
+                onChange={(val) => setFormData(p => ({ ...p, start_time: val }))}
+                required
+              />
+
+              <FormField
+                label="Ora Fine"
+                id="f-end-time"
+                type="time"
+                value={formData.end_time}
+                onChange={(val) => setFormData(p => ({ ...p, end_time: val }))}
+                required
+              />
 
               <FormField
                 label="Ore Sosta (Attesa)"
@@ -722,7 +736,7 @@ function TransportFormContent() {
                 placeholder="Ore d'attesa"
               />
 
-              <div className="grid grid-cols-3 gap-2.5 mt-2 bg-slate-100/50 dark:bg-slate-900/50 p-3 rounded-xl border">
+              <div className="flex flex-col gap-4 mt-2 bg-slate-100/50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-800">
                 <FormField
                   label="Km Inizio"
                   id="f-km-start"
@@ -736,11 +750,12 @@ function TransportFormContent() {
                   type="number"
                   value={formData.km_end}
                   onChange={(val) => setFormData(p => ({ ...p, km_end: val }))}
+                  required
                 />
-                <div className="flex flex-col gap-1.5 justify-center items-center text-center">
-                  <span className="text-[10px] font-bold text-slate-400 uppercase">Km Totali</span>
+                <div className="flex items-center justify-between border-t border-slate-200 dark:border-slate-800 pt-3">
+                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Chilometri Totali</span>
                   <span className="text-xl font-black text-teal-600 dark:text-teal-400">
-                    {formData.km_total}
+                    {formData.km_total} Km
                   </span>
                 </div>
               </div>
@@ -785,7 +800,7 @@ function TransportFormContent() {
                       placeholder="Es: 348 1234567"
                     />
 
-                    <div className="grid grid-cols-2 gap-4 bg-slate-100/30 dark:bg-slate-900/30 p-3.5 rounded-xl border">
+                    <div className="flex flex-col gap-4 bg-slate-100/30 dark:bg-slate-900/30 p-3.5 rounded-xl border">
                       <FormField
                         label="Trasporto In"
                         id="f-method"
@@ -807,45 +822,41 @@ function TransportFormContent() {
                       />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <FormField
-                        label="Presenza Ascensore"
-                        id="f-elevator"
-                        type="toggle"
-                        placeholder={formData.elevator ? 'Sì, utilizzabile' : 'No ascensore'}
-                        value={formData.elevator}
-                        onChange={(val) => setFormData(p => ({ ...p, elevator: val }))}
-                      />
+                    <FormField
+                      label="Presenza Ascensore"
+                      id="f-elevator"
+                      type="toggle"
+                      placeholder={formData.elevator ? 'Sì, utilizzabile' : 'No ascensore'}
+                      value={formData.elevator}
+                      onChange={(val) => setFormData(p => ({ ...p, elevator: val }))}
+                    />
 
-                      <FormField
-                        label="Accompagnato"
-                        id="f-accompanied"
-                        type="toggle"
-                        placeholder={formData.accompanied ? 'Sì, presente' : 'No accompagnatore'}
-                        value={formData.accompanied}
-                        onChange={(val) => setFormData(p => ({ ...p, accompanied: val }))}
-                      />
-                    </div>
+                    <FormField
+                      label="Accompagnato"
+                      id="f-accompanied"
+                      type="toggle"
+                      placeholder={formData.accompanied ? 'Sì, presente' : 'No accompagnatore'}
+                      value={formData.accompanied}
+                      onChange={(val) => setFormData(p => ({ ...p, accompanied: val }))}
+                    />
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <FormField
-                        label="Peso Paziente (Kg)"
-                        id="f-weight"
-                        type="number"
-                        value={formData.weight}
-                        onChange={(val) => setFormData(p => ({ ...p, weight: val }))}
-                        placeholder="Kg"
-                      />
+                    <FormField
+                      label="Peso Paziente (Kg)"
+                      id="f-weight"
+                      type="number"
+                      value={formData.weight}
+                      onChange={(val) => setFormData(p => ({ ...p, weight: val }))}
+                      placeholder="Kg"
+                    />
 
-                      <FormField
-                        label="Necessita Ossigeno"
-                        id="f-oxygen"
-                        type="toggle"
-                        placeholder={formData.oxygen ? 'Sì, attivo' : 'No ossigeno'}
-                        value={formData.oxygen}
-                        onChange={(val) => setFormData(p => ({ ...p, oxygen: val }))}
-                      />
-                    </div>
+                    <FormField
+                      label="Necessita Ossigeno"
+                      id="f-oxygen"
+                      type="toggle"
+                      placeholder={formData.oxygen ? 'Sì, attivo' : 'No ossigeno'}
+                      value={formData.oxygen}
+                      onChange={(val) => setFormData(p => ({ ...p, oxygen: val }))}
+                    />
 
                     {formData.oxygen && (
                       <FormField
@@ -875,7 +886,8 @@ function TransportFormContent() {
                   onClick={() => {
                     setOpenSections(p => ({ ...p, s2: false, s1: true }));
                     setTimeout(() => {
-                      document.getElementById('section-header-s1')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      const el = document.getElementById('section-header-s1');
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }, 50);
                   }}
                   className="btn-touch flex-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200/80 rounded-xl text-xs"
@@ -943,24 +955,23 @@ function TransportFormContent() {
                     required
                   />
                   
-                  <div className="grid grid-cols-2 gap-3">
-                    <FormField
-                      label="Telefono Cliente"
-                      id="f-client-phone"
-                      type="tel"
-                      value={formData.client_phone}
-                      onChange={(val) => setFormData(p => ({ ...p, client_phone: val }))}
-                      placeholder="Contatto"
-                    />
-                    <FormField
-                      label="Email (Obbligatoria per Fattura)"
-                      id="f-client-email"
-                      type="email"
-                      value={formData.client_email}
-                      onChange={(val) => setFormData(p => ({ ...p, client_email: val }))}
-                      placeholder="email@dominio.it"
-                    />
-                  </div>
+                  <FormField
+                    label="Telefono Cliente"
+                    id="f-client-phone"
+                    type="tel"
+                    value={formData.client_phone}
+                    onChange={(val) => setFormData(p => ({ ...p, client_phone: val }))}
+                    placeholder="Contatto"
+                  />
+
+                  <FormField
+                    label="Email (Obbligatoria per Fattura)"
+                    id="f-client-email"
+                    type="email"
+                    value={formData.client_email}
+                    onChange={(val) => setFormData(p => ({ ...p, client_email: val }))}
+                    placeholder="email@dominio.it"
+                  />
                 </div>
               )}
 
@@ -979,7 +990,8 @@ function TransportFormContent() {
                   onClick={() => {
                     setOpenSections(p => ({ ...p, s3: false, s2: true }));
                     setTimeout(() => {
-                      document.getElementById('section-header-s2')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      const el = document.getElementById('section-header-s2');
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }, 50);
                   }}
                   className="btn-touch bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200/80 rounded-xl text-xs"
@@ -1061,11 +1073,11 @@ function TransportFormContent() {
 
               <div className="mt-2 p-4 border border-teal-500/20 bg-teal-500/[0.03] rounded-xl flex flex-col gap-2">
                 <span className="text-xs font-bold text-teal-600 dark:text-teal-400 uppercase tracking-wider">Riepilogo finale</span>
-                <div className="grid grid-cols-2 text-xs font-medium text-slate-500 dark:text-slate-400 gap-1.5">
+                <div className="flex flex-col gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400">
                   <span>Paziente: <b>{formData.patient_name || '-'}</b></span>
                   <span>Mezzo: <b>{formData.vehicle_id ? vehicles.find(v => v.id === formData.vehicle_id)?.license_plate : '--'}</b></span>
-                  <span className="col-span-2">Percorso: <b>{formData.origin ? `${formData.origin.substring(0, 20)}...` : '--'} → {formData.destination ? `${formData.destination.substring(0, 20)}...` : '--'}</b></span>
-                  <span className="col-span-2 text-teal-700 dark:text-teal-400 font-bold mt-1 text-sm">
+                  <span>Percorso: <b>{formData.origin ? `${formData.origin.substring(0, 20)}...` : '--'} → {formData.destination ? `${formData.destination.substring(0, 20)}...` : '--'}</b></span>
+                  <span className="text-teal-700 dark:text-teal-400 font-bold mt-1 text-sm">
                     Costo: {formData.cost || '0'} € | Pagamento: {formData.payment_method.toUpperCase()}
                   </span>
                 </div>
@@ -1077,7 +1089,8 @@ function TransportFormContent() {
                   onClick={() => {
                     setOpenSections(p => ({ ...p, s4: false, s3: true }));
                     setTimeout(() => {
-                      document.getElementById('section-header-s3')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      const el = document.getElementById('section-header-s3');
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
                     }, 50);
                   }}
                   className="btn-touch flex-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-200/80 rounded-xl text-xs"
