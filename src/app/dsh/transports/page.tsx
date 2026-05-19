@@ -42,6 +42,7 @@ export default function DshTransports() {
 
   // Creation Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedTransport, setSelectedTransport] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
   
   // New Booking State
@@ -71,7 +72,10 @@ export default function DshTransports() {
 
   const loadData = async () => {
     setLoading(true);
-    const { data: tList } = await supabase.from('transports').select('*').order('date', { ascending: false });
+    const { data: tList } = await supabase
+      .from('transports')
+      .select('*, vehicles(*), transport_crew(*, user:users(*))')
+      .order('date', { ascending: false });
     const { data: vList } = await supabase.from('vehicles').select('*').eq('active', true);
     
     if (tList) setTransports(tList);
@@ -290,7 +294,7 @@ export default function DshTransports() {
               </thead>
               <tbody className="divide-y divide-slate-150 dark:divide-slate-800 font-medium">
                 {filteredTransports.map((t) => (
-                  <tr key={t.id} className="hover:bg-slate-50/40 dark:hover:bg-slate-850/20 transition-colors">
+                  <tr key={t.id} onClick={() => setSelectedTransport(t)} className="cursor-pointer hover:bg-slate-50/40 dark:hover:bg-slate-850/20 transition-colors">
                     <td className="px-5 py-4 whitespace-nowrap">
                       {getStatusBadge(t.status)}
                     </td>
@@ -331,11 +335,11 @@ export default function DshTransports() {
                     <td className="px-5 py-4 whitespace-nowrap font-bold text-slate-800 dark:text-white">
                       {t.cost ? `${Number(t.cost).toFixed(2)} €` : '--'}
                     </td>
-                    <td className="px-5 py-4 whitespace-nowrap text-right">
+                    <td className="px-5 py-4 whitespace-nowrap text-right" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
                         {t.status === 'programmati' && (
                           <button
-                            onClick={() => handleCancelStatus(t.id)}
+                            onClick={(e) => { e.stopPropagation(); handleCancelStatus(t.id); }}
                             className="p-1.5 text-slate-450 hover:text-amber-500 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition"
                             title="Annulla Servizio"
                           >
@@ -343,7 +347,7 @@ export default function DshTransports() {
                           </button>
                         )}
                         <button
-                          onClick={() => handleDelete(t.id)}
+                          onClick={(e) => { e.stopPropagation(); handleDelete(t.id); }}
                           className="p-1.5 text-slate-450 hover:text-rose-500 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition"
                           title="Elimina Prenotazione"
                         >
@@ -567,6 +571,242 @@ export default function DshTransports() {
           />
 
         </form>
+      </Modal>
+
+      {/* Details Modal */}
+      <Modal
+        isOpen={!!selectedTransport}
+        onClose={() => setSelectedTransport(null)}
+        title="Dettagli Trasporto Sanitario"
+        footer={
+          <button
+            onClick={() => setSelectedTransport(null)}
+            className="px-5 py-2 text-xs font-bold bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg transition"
+          >
+            Chiudi
+          </button>
+        }
+      >
+        {selectedTransport && (
+          <div className="flex flex-col gap-6 max-h-[70vh] overflow-y-auto pr-1 no-scrollbar text-left text-slate-700 dark:text-slate-200">
+            
+            {/* Status & ID Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-850 pb-4">
+              <div className="flex flex-col gap-1">
+                <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">ID TRASPORTO</span>
+                <code className="text-xs font-mono font-bold text-slate-650 dark:text-slate-350">{selectedTransport.id}</code>
+              </div>
+              <div>
+                {getStatusBadge(selectedTransport.status)}
+              </div>
+            </div>
+
+            {/* General & Patient Details Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Column 1: Patient & Requester Info */}
+              <div className="bg-slate-50/50 dark:bg-slate-900/30 p-4 rounded-xl border border-slate-150 dark:border-slate-800/80 flex flex-col gap-3">
+                <h4 className="text-[10px] font-extrabold uppercase tracking-wider text-teal-600 dark:text-teal-400">Paziente & Richiedente</h4>
+                <div className="flex flex-col gap-2 text-xs">
+                  <div className="flex flex-col">
+                    <span className="text-slate-405 dark:text-slate-500 text-[9px] font-bold uppercase">Nome Paziente</span>
+                    <span className="font-bold text-sm text-slate-850 dark:text-white">{selectedTransport.patient_name}</span>
+                  </div>
+                  {selectedTransport.patient_phone && (
+                    <div className="flex flex-col">
+                      <span className="text-slate-405 dark:text-slate-500 text-[9px] font-bold uppercase">Telefono Paziente</span>
+                      <span className="font-semibold">{selectedTransport.patient_phone}</span>
+                    </div>
+                  )}
+                  {selectedTransport.patient_address && (
+                    <div className="flex flex-col">
+                      <span className="text-slate-405 dark:text-slate-500 text-[9px] font-bold uppercase">Indirizzo Abitazione</span>
+                      <span className="font-semibold">{selectedTransport.patient_address}</span>
+                    </div>
+                  )}
+                  {(selectedTransport.requester_name || selectedTransport.requester_phone) && (
+                    <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-800/60 flex flex-col gap-2">
+                      {selectedTransport.requester_name && (
+                        <div className="flex flex-col">
+                          <span className="text-slate-405 dark:text-slate-500 text-[9px] font-bold uppercase">Richiedente</span>
+                          <span className="font-semibold">{selectedTransport.requester_name}</span>
+                        </div>
+                      )}
+                      {selectedTransport.requester_phone && (
+                        <div className="flex flex-col">
+                          <span className="text-slate-405 dark:text-slate-500 text-[9px] font-bold uppercase">Telefono Richiedente</span>
+                          <span className="font-semibold">{selectedTransport.requester_phone}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Column 2: Service & Logistical Details */}
+              <div className="bg-slate-50/50 dark:bg-slate-900/30 p-4 rounded-xl border border-slate-150 dark:border-slate-800/80 flex flex-col gap-3">
+                <h4 className="text-[10px] font-extrabold uppercase tracking-wider text-teal-600 dark:text-teal-400">Logistica & Dettagli Corsa</h4>
+                <div className="flex flex-col gap-2 text-xs">
+                  <div className="flex flex-col">
+                    <span className="text-slate-405 dark:text-slate-500 text-[9px] font-bold uppercase">Data Servizio</span>
+                    <span className="font-bold">{selectedTransport.date}</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex flex-col">
+                      <span className="text-slate-405 dark:text-slate-500 text-[9px] font-bold uppercase">Tipologia</span>
+                      <span className="font-semibold capitalize">{selectedTransport.transport_type}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-slate-405 dark:text-slate-500 text-[9px] font-bold uppercase">Servizio</span>
+                      <span className="font-semibold capitalize">{selectedTransport.trip_type}</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex flex-col">
+                      <span className="text-slate-405 dark:text-slate-500 text-[9px] font-bold uppercase">Metodo</span>
+                      <span className="font-semibold capitalize">{selectedTransport.transport_method}</span>
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-slate-405 dark:text-slate-500 text-[9px] font-bold uppercase">Piano</span>
+                      <span className="font-semibold">{selectedTransport.floor} {selectedTransport.elevator ? '(Con Ascensore)' : '(Senza Ascensore)'}</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex flex-col">
+                      <span className="text-slate-405 dark:text-slate-500 text-[9px] font-bold uppercase">Accompagnatore</span>
+                      <span className="font-semibold">{selectedTransport.accompanied ? 'Presente' : 'Non presente'}</span>
+                    </div>
+                    {selectedTransport.weight && (
+                      <div className="flex flex-col">
+                        <span className="text-slate-405 dark:text-slate-500 text-[9px] font-bold uppercase">Peso Paziente</span>
+                        <span className="font-semibold">{selectedTransport.weight} kg</span>
+                      </div>
+                    )}
+                  </div>
+                  {selectedTransport.oxygen && selectedTransport.oxygen !== 'No' && (
+                    <div className="flex flex-col">
+                      <span className="text-slate-405 dark:text-slate-500 text-[9px] font-bold uppercase">Ossigeno</span>
+                      <span className="font-semibold text-rose-500">{selectedTransport.oxygen}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Routing, Timestamps & Odometer */}
+            <div className="bg-slate-50/50 dark:bg-slate-900/30 p-4 rounded-xl border border-slate-150 dark:border-slate-800/80 flex flex-col gap-3">
+              <h4 className="text-[10px] font-extrabold uppercase tracking-wider text-teal-600 dark:text-teal-400">Itinerario, Orari & Chilometri</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+                <div className="md:col-span-3 flex flex-col gap-2">
+                  <div className="flex flex-col">
+                    <span className="text-slate-405 dark:text-slate-500 text-[9px] font-bold uppercase">Luogo di Partenza</span>
+                    <span className="font-semibold">{selectedTransport.origin}</span>
+                  </div>
+                  <div className="flex flex-col">
+                    <span className="text-slate-405 dark:text-slate-500 text-[9px] font-bold uppercase">Luogo di Arrivo</span>
+                    <span className="font-semibold">{selectedTransport.destination}</span>
+                  </div>
+                </div>
+                
+                <div className="flex flex-col bg-slate-100/50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-200/50 dark:border-slate-800/50 gap-1.5">
+                  <span className="text-[9px] font-bold text-slate-450 dark:text-slate-500 uppercase tracking-wider">Orari</span>
+                  <div className="flex flex-col gap-1">
+                    <span><b>Inizio:</b> {selectedTransport.start_time ? new Date(selectedTransport.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}</span>
+                    <span><b>Fine:</b> {selectedTransport.end_time ? new Date(selectedTransport.end_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}</span>
+                    {Number(selectedTransport.wait_hours) > 0 && <span><b>Attesa:</b> {selectedTransport.wait_hours} h</span>}
+                  </div>
+                </div>
+
+                <div className="flex flex-col bg-slate-100/50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-200/50 dark:border-slate-800/50 gap-1.5">
+                  <span className="text-[9px] font-bold text-slate-450 dark:text-slate-500 uppercase tracking-wider">Chilometri</span>
+                  <div className="flex flex-col gap-1">
+                    <span><b>Iniziali:</b> {selectedTransport.km_start ?? 0}</span>
+                    <span><b>Finali:</b> {selectedTransport.km_end ?? 0}</span>
+                    <span><b>Totali:</b> {selectedTransport.km_total ?? 0} km</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-col bg-slate-100/50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-200/50 dark:border-slate-800/50 gap-1.5">
+                  <span className="text-[9px] font-bold text-slate-450 dark:text-slate-500 uppercase tracking-wider">Mezzo & Equipaggio</span>
+                  <div className="flex flex-col gap-1">
+                    <span><b>Mezzo:</b> {selectedTransport.vehicles?.license_plate || '--'}</span>
+                    <span className="text-[10px] text-teal-650 dark:text-teal-400 font-semibold truncate">
+                      {selectedTransport.transport_crew && selectedTransport.transport_crew.length > 0 ? (
+                        selectedTransport.transport_crew.map((c: any) => c.user ? c.user.name.split(' ')[0] : (c.custom_name || '').split(' ')[0]).join(' + ')
+                      ) : (
+                        'Nessun equipaggio'
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Billing Details */}
+            <div className="bg-slate-50/50 dark:bg-slate-900/30 p-4 rounded-xl border border-slate-150 dark:border-slate-800/80 flex flex-col gap-3">
+              <h4 className="text-[10px] font-extrabold uppercase tracking-wider text-teal-600 dark:text-teal-400">Tariffazione & Fatturazione</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-col">
+                    <span className="text-slate-405 dark:text-slate-500 text-[9px] font-bold uppercase">Cliente Pagante</span>
+                    <span className="font-semibold">{selectedTransport.client_name || selectedTransport.patient_name}</span>
+                  </div>
+                  {selectedTransport.client_phone && (
+                    <div className="flex flex-col">
+                      <span className="text-slate-405 dark:text-slate-500 text-[9px] font-bold uppercase">Telefono Cliente</span>
+                      <span className="font-semibold">{selectedTransport.client_phone}</span>
+                    </div>
+                  )}
+                  {selectedTransport.client_email && (
+                    <div className="flex flex-col">
+                      <span className="text-slate-405 dark:text-slate-500 text-[9px] font-bold uppercase">Email Fattura</span>
+                      <span className="font-semibold text-teal-650 dark:text-teal-400 font-mono">{selectedTransport.client_email}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-col justify-between bg-teal-500/[0.03] dark:bg-teal-500/[0.02] border border-teal-500/20 p-4 rounded-xl">
+                  <div className="flex flex-col gap-1">
+                    <span className="text-slate-405 dark:text-slate-500 text-[9px] font-bold uppercase">Importo</span>
+                    <span className="text-xl font-black text-teal-700 dark:text-teal-400">
+                      {selectedTransport.cost ? `${Number(selectedTransport.cost).toFixed(2)} €` : 'Da definire'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase mt-2">
+                    <span>Metodo:</span>
+                    <span className="bg-teal-500/10 text-teal-700 dark:text-teal-400 px-2 py-0.5 rounded">
+                      {selectedTransport.payment_method || 'Contanti'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Conditions & Notes */}
+            {(selectedTransport.conditions || selectedTransport.notes) && (
+              <div className="bg-slate-50/50 dark:bg-slate-900/30 p-4 rounded-xl border border-slate-150 dark:border-slate-800/80 flex flex-col gap-3">
+                <h4 className="text-[10px] font-extrabold uppercase tracking-wider text-teal-600 dark:text-teal-400">Note & Condizioni</h4>
+                <div className="flex flex-col gap-3 text-xs">
+                  {selectedTransport.conditions && (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-slate-405 dark:text-slate-500 text-[9px] font-bold uppercase">Stato / Condizioni Paziente</span>
+                      <p className="bg-white dark:bg-slate-950 p-3 rounded-lg border border-slate-200/60 dark:border-slate-850/60 leading-relaxed font-semibold italic text-slate-650 dark:text-slate-350">
+                        "{selectedTransport.conditions}"
+                      </p>
+                    </div>
+                  )}
+                  {selectedTransport.notes && (
+                    <div className="flex flex-col gap-1">
+                      <span className="text-slate-405 dark:text-slate-500 text-[9px] font-bold uppercase">Note Equipaggio</span>
+                      <p className="bg-white dark:bg-slate-950 p-3 rounded-lg border border-slate-200/60 dark:border-slate-850/60 leading-relaxed text-slate-650 dark:text-slate-300">
+                        {selectedTransport.notes}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
 
     </div>
