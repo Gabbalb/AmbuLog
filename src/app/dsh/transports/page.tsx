@@ -1,14 +1,14 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { 
-  Plus, 
-  Search, 
-  Filter, 
-  Calendar, 
-  MapPin, 
-  User, 
-  Truck, 
+import {
+  Plus,
+  Search,
+  Filter,
+  Calendar,
+  MapPin,
+  User,
+  Truck,
   Clock,
   CheckCircle2,
   XCircle,
@@ -22,12 +22,9 @@ import Modal from '@/components/Modal';
 import FormField from '@/components/FormField';
 
 const FREQUENT_PLACES = [
-  'Ospedale di Vicenza',
-  'Ospedale di Padova',
-  'Poliambulatorio Santa Chiara',
-  'Clinica Villa Berica',
-  'Residenza San Camillo',
-  'Domicilio Privato'
+  'PS Chiari',
+  'PS Città di Brescia',
+  'PS Iseo'
 ];
 
 export default function DshTransports() {
@@ -45,7 +42,7 @@ export default function DshTransports() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedTransport, setSelectedTransport] = useState<any>(null);
   const [submitting, setSubmitting] = useState(false);
-  
+
   // New Booking State
   const [newBooking, setNewBooking] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -106,13 +103,13 @@ export default function DshTransports() {
         doc.setFillColor(lightBg[0], lightBg[1], lightBg[2]);
         doc.setDrawColor(lightBorder[0], lightBorder[1], lightBorder[2]);
         doc.roundedRect(x, y, w, h, 3, 3, 'FD');
-        
+
         // Card title header
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(8.5);
         doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
         doc.text(title.toUpperCase(), x + 4, y + 6.5);
-        
+
         // Horizontal divider under card header
         doc.setDrawColor(203, 213, 225); // Slate 300
         doc.line(x + 4, y + 9, x + w - 4, y + 9);
@@ -129,12 +126,12 @@ export default function DshTransports() {
       doc.setFontSize(14);
       doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
       doc.text('COOP G.M. Pubblica Assistenza', 42, 18);
-      
+
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8.5);
       doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
       doc.text('Brescia • Servizi Sanitari di Trasporto Secondario', 42, 23);
-      doc.text('Email: info@coopgm.it • Tel: +39 030 123456', 42, 27);
+      doc.text('C.F. / P.I. 04679060980 • Tel: +39 3792434075  • Via Don Giacomo Vender 42/44  •  25124 Brescia (BS)', 42, 27);
 
       // Accent colored main horizontal bar
       doc.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
@@ -169,19 +166,19 @@ export default function DshTransports() {
       // CARD 1: PAZIENTE & RICHIEDENTE (Left) & LOGISTICA (Right)
       const colW = 86; // 86mm each card, leaves 8mm gap in-between (15 + 86 + 8 + 86 = 195)
       const cardHeight = 65;
-      
+
       // Draw Paziente & Richiedente
       drawCard(15, currentY, colW, cardHeight, 'Paziente & Richiedente');
       doc.setFontSize(8);
       doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
       let itemY = currentY + 14;
-      
+
       doc.text('NOME PAZIENTE:', 19, itemY);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
       doc.setFontSize(9.5);
       doc.text(t.patient_name || '--', 19, itemY + 4);
-      
+
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
@@ -190,7 +187,7 @@ export default function DshTransports() {
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
       doc.text(t.patient_phone || '--', 19, itemY + 4);
-      
+
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
       itemY += 10;
@@ -218,7 +215,7 @@ export default function DshTransports() {
         doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
         doc.text(label1, 113, yPos);
         doc.text(label2, 154, yPos);
-        
+
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
         doc.text(val1, 113, yPos + 4);
@@ -229,7 +226,7 @@ export default function DshTransports() {
       itemY += 10;
       drawLogisticsRow('TIPO VIAGGIO:', (t.trip_type || 'Andata').toUpperCase(), 'METODO:', (t.transport_method || 'Barella').toUpperCase(), itemY);
       itemY += 10;
-      
+
       const elevatorStr = t.elevator ? 'SÌ (Ascensore)' : 'NO (A Piedi)';
       const floorStr = t.floor !== undefined && t.floor !== null ? `Piano ${t.floor} (${elevatorStr})` : '--';
       drawLogisticsRow('PIANO & SALITA:', floorStr, 'ACCOMPAGNATORE:', t.accompanied ? 'PRESENTE' : 'NON PRESENTE', itemY);
@@ -245,7 +242,7 @@ export default function DshTransports() {
       const fullW = 180;
       const card2H = 50;
       drawCard(15, currentY, fullW, card2H, 'Itinerario, Orari & Chilometri');
-      
+
       itemY = currentY + 14;
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
@@ -265,18 +262,18 @@ export default function DshTransports() {
 
       // Three Sub-columns at bottom of card 2
       itemY += 10;
-      
+
       const subColW = 55;
       const drawSubBox = (xPos: number, title: string, lines: string[]) => {
         doc.setFillColor(241, 245, 249);
         doc.setDrawColor(226, 232, 240);
         doc.roundedRect(xPos, itemY, subColW, 14, 1.5, 1.5, 'FD');
-        
+
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(7.5);
         doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
         doc.text(title.toUpperCase(), xPos + 3, itemY + 4);
-        
+
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7.5);
         doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
@@ -287,11 +284,11 @@ export default function DshTransports() {
         });
       };
 
-      const sTimeStr = t.start_time ? new Date(t.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--';
-      const eTimeStr = t.end_time ? new Date(t.end_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--';
+      const sTimeStr = t.start_time ? new Date(t.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
+      const eTimeStr = t.end_time ? new Date(t.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--';
       const waitStr = Number(t.wait_hours) > 0 ? `Attesa: ${t.wait_hours} h` : '';
       drawSubBox(19, 'Orari', [`Inizio: ${sTimeStr} | Fine: ${eTimeStr}`, waitStr].filter(Boolean));
-      
+
       const kStart = t.km_start ?? 0;
       const kEnd = t.km_end ?? 0;
       const kTot = t.km_total ?? 0;
@@ -314,7 +311,7 @@ export default function DshTransports() {
       doc.setFont('helvetica', 'normal');
       doc.setFontSize(8);
       doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
-      
+
       doc.text('CLIENTE PAGANTE:', 19, itemY);
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
@@ -344,7 +341,7 @@ export default function DshTransports() {
       doc.setFontSize(8);
       doc.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
       doc.text('IMPORTO DEL SERVIZIO', 23, itemY + 6);
-      
+
       doc.setFontSize(14);
       doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
       const priceStr = t.cost ? `${Number(t.cost).toFixed(2)} €` : 'DA DEFINIRE';
@@ -368,11 +365,11 @@ export default function DshTransports() {
         doc.setFont('helvetica', 'normal');
         doc.setFontSize(7.5);
         doc.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
-        
+
         let noteLines = [];
         if (t.conditions) noteLines.push(`Stato/Condizioni: "${t.conditions}"`);
         if (t.notes) noteLines.push(`Note Equipaggio: ${t.notes}`);
-        
+
         let textY = currentY + 14;
         noteLines.forEach(l => {
           doc.text(l, 19, textY);
@@ -387,7 +384,6 @@ export default function DshTransports() {
       doc.setFontSize(7.5);
       doc.setTextColor(grayColor[0], grayColor[1], grayColor[2]);
       doc.text('COOP G.M. Pubblica Assistenza - Società Cooperativa Sociale', 105, 275, { align: 'center' });
-      doc.text('Certificato conforme ai sensi delle vigenti normative di trasporto sanitario secondario.', 105, 279, { align: 'center' });
 
       // Save document
       const patientLastName = (t.patient_name || 'Trasporto').split(' ').pop();
@@ -405,10 +401,10 @@ export default function DshTransports() {
       .select('*, vehicles(*), transport_crew(*, user:users(*))')
       .order('date', { ascending: false });
     const { data: vList } = await supabase.from('vehicles').select('*').eq('active', true);
-    
+
     if (tList) setTransports(tList);
     if (vList) setVehicles(vList);
-    
+
     setLoading(false);
   };
 
@@ -453,10 +449,10 @@ export default function DshTransports() {
       };
 
       await supabase.from('transports').insert(payload);
-      
+
       alert('Trasporto programmato con successo!');
       setIsModalOpen(false);
-      
+
       // Reset form
       setNewBooking({
         date: new Date().toISOString().split('T')[0],
@@ -507,9 +503,9 @@ export default function DshTransports() {
 
   // Filter transports list
   const filteredTransports = transports.filter((t: any) => {
-    const matchesSearch = t.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                          t.origin.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          t.destination.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = t.patient_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      t.origin.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      t.destination.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter ? t.status === statusFilter : true;
     const matchesType = typeFilter ? t.transport_type === typeFilter : true;
     const matchesDate = dateFilter ? t.date === dateFilter : true;
@@ -534,7 +530,7 @@ export default function DshTransports() {
 
   return (
     <div className="flex flex-col gap-6">
-      
+
       {/* Header Panel */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -715,7 +711,7 @@ export default function DshTransports() {
         }
       >
         <form onSubmit={handleCreateBooking} className="flex flex-col gap-4 max-h-[70vh] overflow-y-auto pr-1 no-scrollbar text-left">
-          
+
           <div className="border-b pb-2 mb-1">
             <span className="text-[10px] font-bold text-teal-600 uppercase tracking-wider">Dati Anagrafici</span>
           </div>
@@ -926,7 +922,7 @@ export default function DshTransports() {
       >
         {selectedTransport && (
           <div className="flex flex-col gap-6 text-left text-slate-700 dark:text-slate-200">
-            
+
             {/* Status & ID Header */}
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-850 pb-4">
               <div className="flex flex-col gap-1">
@@ -1043,12 +1039,12 @@ export default function DshTransports() {
                     <span className="font-semibold">{selectedTransport.destination}</span>
                   </div>
                 </div>
-                
+
                 <div className="flex flex-col bg-slate-100/50 dark:bg-slate-900/50 p-3 rounded-lg border border-slate-200/50 dark:border-slate-800/50 gap-1.5">
                   <span className="text-[9px] font-bold text-slate-450 dark:text-slate-500 uppercase tracking-wider">Orari</span>
                   <div className="flex flex-col gap-1">
-                    <span><b>Inizio:</b> {selectedTransport.start_time ? new Date(selectedTransport.start_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}</span>
-                    <span><b>Fine:</b> {selectedTransport.end_time ? new Date(selectedTransport.end_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : '--:--'}</span>
+                    <span><b>Inizio:</b> {selectedTransport.start_time ? new Date(selectedTransport.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}</span>
+                    <span><b>Fine:</b> {selectedTransport.end_time ? new Date(selectedTransport.end_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--:--'}</span>
                     {Number(selectedTransport.wait_hours) > 0 && <span><b>Attesa:</b> {selectedTransport.wait_hours} h</span>}
                   </div>
                 </div>
